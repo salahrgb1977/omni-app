@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MapPin, Camera, CheckCircle, ArrowLeft, Mic } from 'lucide-react'
+import { MapPin, Camera, CheckCircle, ArrowLeft, Mic, Package, Plus, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 export function WorkerJobDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   
   const [job, setJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -19,8 +21,15 @@ export function WorkerJobDetail() {
   const mediaRecorder = useRef<MediaRecorder | null>(null)
   const audioChunks = useRef<Blob[]>([])
 
+  // Inventory State
+  const [consumablesList, setConsumablesList] = useState<any[]>([])
+  const [selectedMaterials, setSelectedMaterials] = useState<any[]>([])
+  const [selectedItem, setSelectedItem] = useState('')
+  const [inputQuantity, setInputQuantity] = useState('1')
+
   useEffect(() => {
     fetchJob()
+    fetchConsumables()
   }, [id])
 
   useEffect(() => {
@@ -41,6 +50,20 @@ export function WorkerJobDetail() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchConsumables = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('item_type', 'consumable')
+        .order('item_name')
+      
+      if (!error && data) setConsumablesList(data)
+    } catch (err) {
+      console.error('Failed to fetch consumables', err)
     }
   }
 
@@ -164,6 +187,35 @@ export function WorkerJobDetail() {
     }
   }
 
+  const handleAddMaterial = () => {
+    if (!selectedItem || !inputQuantity || isNaN(Number(inputQuantity)) || Number(inputQuantity) <= 0) return
+    
+    const item = consumablesList.find(c => c.id === selectedItem)
+    if (!item) return
+    
+    const existing = selectedMaterials.find(m => m.item_id === selectedItem)
+    if (existing) {
+      setSelectedMaterials(selectedMaterials.map(m => 
+        m.item_id === selectedItem 
+          ? { ...m, quantity: m.quantity + Number(inputQuantity) } 
+          : m
+      ))
+    } else {
+      setSelectedMaterials([...selectedMaterials, { 
+        item_id: item.id, 
+        name: item.item_name, 
+        quantity: Number(inputQuantity) 
+      }])
+    }
+    
+    setSelectedItem('')
+    setInputQuantity('1')
+  }
+
+  const handleRemoveMaterial = (itemId: string) => {
+    setSelectedMaterials(selectedMaterials.filter(m => m.item_id !== itemId))
+  }
+
   const handleComplete = async () => {
     // HARD GATE LOGIC 
     if (!job.before_photo_url || !job.after_photo_url) return
@@ -171,6 +223,24 @@ export function WorkerJobDetail() {
     
     setLoading(true)
     try {
+      // 1. Log Consumables (Atomic Auto-Deduction via RPC)
+      if (selectedMaterials.length > 0 && user) {
+        for (const material of selectedMaterials) {
+          const { error: rpcError } = await supabase.rpc('log_consumable_usage', {
+            p_job_id: id,
+            p_worker_id: user.id,
+            p_item_id: material.item_id,
+            p_quantity: material.quantity
+          })
+          
+          if (rpcError) {
+            console.error('RPC Error:', rpcError)
+            throw new Error(`Failed to log material: ${material.name}. Check if RPC is created in Supabase.`)
+          }
+        }
+      }
+
+      // 2. Mark Job as Completed
       const { error } = await supabase.from('jobs').update({ 
         status: 'completed',
         task_note: taskNote 
@@ -211,7 +281,7 @@ export function WorkerJobDetail() {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm font-medium shadow-sm">
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm font-medium shadow-sm border border-red-200">
           {error}
         </div>
       )}
@@ -336,6 +406,60 @@ export function WorkerJobDetail() {
                     Voice Memo Attached
                   </div>
                   <audio src={job.voice_memo_url} controls className="w-full h-10" />
+                </div>
+              )}
+            </div>
+
+            {/* Materials Log Section */}
+            <div className="premium-card p-5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center">
+                <Package size={14} className="mr-2" /> Log Materials (Optional)
+              </h3>
+              <p className="text-sm text-slate-500 mb-4 font-medium leading-relaxed">Select any consumable materials used during this job. This will automatically deduct from inventory.</p>
+              
+              <div className="flex space-x-2 mb-4">
+                <select
+                  value={selectedItem}
+                  onChange={(e) => setSelectedItem(e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-slate-700 bg-slate-50 font-medium text-sm"
+                >
+                  <option value="">Select an item...</option>
+                  {consumablesList.map(c => (
+                    <option key={c.id} value={c.id}>{c.item_name} ({c.quantity} in stock)</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={inputQuantity}
+                  onChange={(e) => setInputQuantity(e.target.value)}
+                  className="w-20 border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-slate-700 bg-slate-50 font-medium text-sm text-center"
+                />
+                <button
+                  onClick={handleAddMaterial}
+                  disabled={!selectedItem}
+                  className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 p-3 rounded-xl transition-colors disabled:opacity-50 border border-indigo-100"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+
+              {selectedMaterials.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden shadow-sm">
+                  <ul className="divide-y divide-slate-200/60">
+                    {selectedMaterials.map(m => (
+                      <li key={m.item_id} className="p-3 flex justify-between items-center bg-white/50">
+                        <span className="font-bold text-slate-700 text-sm">{m.name}</span>
+                        <div className="flex items-center space-x-3">
+                          <span className="font-mono text-sm font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Qty: {m.quantity}</span>
+                          <button onClick={() => handleRemoveMaterial(m.item_id)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
