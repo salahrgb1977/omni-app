@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  overscroll-behavior: none;
-  user-select: none; /* No text selection for app-like feel */
-  background-color: #f8fafc;
-  color: #0f172a;
+@layer utilities {
+  .glass-nav {
+    @apply bg-white/90 backdrop-blur-md border-t border-slate-200/50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)];
+  }
+  
+  .glass-card {
+    @apply bg-white/80 backdrop-blur border border-white/40 shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  .premium-card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300;
+  }
 }

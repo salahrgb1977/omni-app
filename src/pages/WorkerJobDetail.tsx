@@ -133,15 +133,18 @@ export function WorkerJobDetail() {
   if (!job) return <div className="p-4">Job not found.</div>
 
   return (
-    <div className="flex flex-col min-h-full bg-slate-50 p-4">
+    <div className="flex flex-col min-h-full bg-slate-50 p-4 pb-24">
       {/* Header */}
       <div className="mb-6">
-        <Link to="/worker" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-800 mb-4">
+        <Link to="/worker" className="inline-flex items-center text-sm font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors">
           <ArrowLeft size={16} className="mr-1" /> Back to Jobs
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Job #{job.id.slice(0, 8)}</h1>
-        <p className="text-slate-500">{job.clients?.full_name}</p>
-        <p className="text-sm text-slate-400">{job.clients?.address_text}</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Job #{job.id.slice(0, 8)}</h1>
+        <p className="text-lg font-bold text-slate-700 mt-2">{job.clients?.full_name}</p>
+        <p className="text-sm font-medium text-slate-500 mt-1 flex items-center">
+          <MapPin size={14} className="mr-1.5 text-indigo-500" />
+          {job.clients?.address_text}
+        </p>
       </div>
 
       {error && (
@@ -151,9 +154,9 @@ export function WorkerJobDetail() {
       )}
 
       {/* Task Description */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-        <h3 className="text-sm font-medium text-slate-500 mb-2">Task Description</h3>
-        <p className="text-slate-900">{job.task_description}</p>
+      <div className="premium-card p-5 mb-6">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Task Description</h3>
+        <p className="text-slate-700 font-medium leading-relaxed">{job.task_description}</p>
       </div>
 
       {/* Actions */}
@@ -162,7 +165,7 @@ export function WorkerJobDetail() {
           <button
             onClick={handleCheckIn}
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 shadow hover:shadow-md text-white font-bold py-4 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:transform-none"
           >
             <MapPin size={20} />
             <span>Check In (GPS)</span>
@@ -172,8 +175,8 @@ export function WorkerJobDetail() {
         {job.status === 'in_progress' && (
           <div className="space-y-4">
             {/* Before Photo */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-              <h3 className="font-medium text-slate-900 mb-3">Before Photo</h3>
+            <div className="premium-card p-5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Before Photo</h3>
               {job.before_photo_url ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-100">
                   <img src={job.before_photo_url} alt="Before" className="w-full h-full object-cover" />
@@ -191,9 +194,9 @@ export function WorkerJobDetail() {
                   <button
                     onClick={() => beforePhotoRef.current?.click()}
                     disabled={loading}
-                    className="w-full border-2 border-dashed border-slate-300 hover:border-blue-500 text-slate-600 font-medium py-8 rounded-lg flex flex-col items-center justify-center space-y-2 transition-colors disabled:opacity-50"
+                    className="w-full border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50 text-slate-600 font-bold py-10 rounded-xl flex flex-col items-center justify-center space-y-3 transition-all disabled:opacity-50"
                   >
-                    <Camera size={24} className="text-slate-400" />
+                    <Camera size={28} className="text-slate-400" />
                     <span>Capture Before Photo</span>
                   </button>
                 </>
@@ -201,8 +204,8 @@ export function WorkerJobDetail() {
             </div>
 
             {/* After Photo */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-              <h3 className="font-medium text-slate-900 mb-3">After Photo</h3>
+            <div className="premium-card p-5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">After Photo</h3>
               {job.after_photo_url ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-100">
                   <img src={job.after_photo_url} alt="After" className="w-full h-full object-cover" />
@@ -220,9 +223,9 @@ export function WorkerJobDetail() {
                   <button
                     onClick={() => afterPhotoRef.current?.click()}
                     disabled={loading}
-                    className="w-full border-2 border-dashed border-slate-300 hover:border-blue-500 text-slate-600 font-medium py-8 rounded-lg flex flex-col items-center justify-center space-y-2 transition-colors disabled:opacity-50"
+                    className="w-full border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50 text-slate-600 font-bold py-10 rounded-xl flex flex-col items-center justify-center space-y-3 transition-all disabled:opacity-50"
                   >
-                    <Camera size={24} className="text-slate-400" />
+                    <Camera size={28} className="text-slate-400" />
                     <span>Capture After Photo</span>
                   </button>
                 </>
@@ -234,7 +237,7 @@ export function WorkerJobDetail() {
               <button
                 onClick={handleComplete}
                 disabled={loading}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                className="w-full bg-teal-600 hover:bg-teal-700 hover:-translate-y-0.5 shadow hover:shadow-md text-white font-bold py-4 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:transform-none mt-6"
               >
                 <CheckCircle size={20} />
                 <span>Complete Job</span>
@@ -244,10 +247,10 @@ export function WorkerJobDetail() {
         )}
 
         {job.status === 'completed' && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-            <CheckCircle size={32} className="text-green-500 mx-auto mb-2" />
-            <h3 className="font-semibold text-green-800">Job Completed</h3>
-            <p className="text-sm text-green-600">Great work!</p>
+          <div className="bg-teal-50 border border-teal-200 rounded-2xl p-8 text-center mt-6">
+            <CheckCircle size={48} className="text-teal-500 mx-auto mb-4" />
+            <h3 className="text-xl font-extrabold text-teal-900 mb-1">Job Completed</h3>
+            <p className="font-medium text-teal-600">Great work!</p>
           </div>
         )}
       </div>

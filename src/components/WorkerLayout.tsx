@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { Briefcase, DollarSign, User, Package } from 'lucide-react'
+import { Briefcase, Package, User, DollarSign } from 'lucide-react'
 
 export function WorkerLayout() {
   return (
@@ -8,35 +8,39 @@ export function WorkerLayout() {
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-0 w-full bg-white border-t border-slate-200 flex justify-around items-center h-16 max-w-md mx-auto">
+      <nav className="fixed bottom-0 w-full glass-nav flex justify-around items-center h-20 max-w-md mx-auto px-2">
         <NavLink 
           to="/worker" 
           end
-          className={({isActive}) => `flex flex-col items-center p-2 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
+          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+          style={{ width: '64px', height: '64px' }}
         >
-          <Briefcase size={24} />
-          <span className="text-[10px] mt-1 font-medium">Jobs</span>
+          <Briefcase size={22} className="mb-1" />
+          <span className="text-[10px] font-semibold">Jobs</span>
         </NavLink>
         <NavLink 
           to="/worker/equipment" 
-          className={({isActive}) => `flex flex-col items-center p-2 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
+          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+          style={{ width: '64px', height: '64px' }}
         >
-          <Package size={24} />
-          <span className="text-[10px] mt-1 font-medium">Equipment</span>
+          <Package size={22} className="mb-1" />
+          <span className="text-[10px] font-semibold">Vault</span>
         </NavLink>
         <NavLink 
           to="/worker/earnings" 
-          className={({isActive}) => `flex flex-col items-center p-2 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
+          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+          style={{ width: '64px', height: '64px' }}
         >
-          <DollarSign size={24} />
-          <span className="text-[10px] mt-1 font-medium">Earnings</span>
+          <DollarSign size={22} className="mb-1" />
+          <span className="text-[10px] font-semibold">Pay</span>
         </NavLink>
         <NavLink 
           to="/worker/profile" 
-          className={({isActive}) => `flex flex-col items-center p-2 ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
+          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+          style={{ width: '64px', height: '64px' }}
         >
-          <User size={24} />
-          <span className="text-[10px] mt-1 font-medium">Profile</span>
+          <User size={22} className="mb-1" />
+          <span className="text-[10px] font-semibold">Profile</span>
         </NavLink>
       </nav>
     </div>
