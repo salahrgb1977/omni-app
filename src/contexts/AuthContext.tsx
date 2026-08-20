@@ -1,77 +1,71 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import React, { createContext, useContext, useState, useEffect } from 'react'
+import { Profile, UserRole, VehicleId } from '../types/omni'
+import { initialProfiles } from '../lib/mockData'
 
 interface AuthContextType {
-  session: Session | null
-  user: User | null
-  role: 'admin' | 'worker' | null
-  loading: boolean
+  currentRole: UserRole
+  setCurrentRole: (role: UserRole) => void
+  currentProfile: Profile
+  switchProfile: (profileId: string) => void
+  profilesList: Profile[]
+  isCaptain: boolean
+  assignedVehicle: VehicleId
+  user: { id: string; email?: string }
 }
 
-const AuthContext = createContext<AuthContextType>({
-  session: null,
-  user: null,
-  role: null,
-  loading: true,
-})
-
-export const useAuth = () => useContext(AuthContext)
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [user, setUser] = useState<User | null>(null)
-  const [role, setRole] = useState<'admin' | 'worker' | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [profilesList, setProfilesList] = useState<Profile[]>(initialProfiles)
+  const [currentRoleId, setCurrentRoleId] = useState<string>('admin-1')
 
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchRole(session.user.id)
-      } else {
-        setLoading(false)
-      }
-    })
+  const currentProfile = profilesList.find(p => p.id === currentRoleId) || profilesList[0]
+  const currentRole = currentProfile.role
 
-    // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchRole(session.user.id)
-      } else {
-        setRole(null)
-        setLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const fetchRole = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      
-      if (!error && data) {
-        setRole(data.role as 'admin' | 'worker')
-      }
-    } catch (err) {
-      console.error('Error fetching role:', err)
-    } finally {
-      setLoading(false)
+  const setCurrentRole = (role: UserRole) => {
+    if (role === 'admin') {
+      setCurrentRoleId('admin-1')
+    } else {
+      // Pick first worker (e.g. Marcus Vance)
+      const firstWorker = profilesList.find(p => p.role === 'worker') || profilesList[1]
+      setCurrentRoleId(firstWorker.id)
     }
   }
 
+  const switchProfile = (profileId: string) => {
+    setCurrentRoleId(profileId)
+  }
+
+  const isCaptain = Boolean(currentProfile.is_daily_captain)
+  const assignedVehicle = currentProfile.assigned_vehicle || 'van_1'
+
+  const user = {
+    id: currentProfile.id,
+    email: `${currentProfile.full_name.toLowerCase().replace(/\s+/g, '.')}@omnihvac.io`
+  }
+
   return (
-    <AuthContext.Provider value={{ session, user, role, loading }}>
+    <AuthContext.Provider
+      value={{
+        currentRole,
+        setCurrentRole,
+        currentProfile,
+        switchProfile,
+        profilesList,
+        isCaptain,
+        assignedVehicle,
+        user
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
 }

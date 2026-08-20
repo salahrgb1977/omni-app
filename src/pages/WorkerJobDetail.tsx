@@ -1,145 +1,125 @@
-import { useState, useRef, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { MapPin, Camera, CheckCircle, ArrowLeft, Mic, Package, Plus, Trash2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import React, { useState, useRef } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useData } from '../contexts/DataContext'
+import { Badge } from '../components/common/Badge'
+import { formatDateTime, formatTime } from '../lib/formatters'
+import {
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  Mic,
+  Square,
+  Volume2,
+  MapPin,
+  Clock,
+  FileText,
+  AlertCircle,
+  Lock
+} from 'lucide-react'
 
 export function WorkerJobDetail() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  
-  const [job, setJob] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  
-  // Task Report State
-  const [taskNote, setTaskNote] = useState('')
+  const { currentProfile } = useAuth()
+  const {
+    jobs,
+    startJobBeforePhoto,
+    setJobAfterPhoto,
+    submitJobReport,
+    completeJob
+  } = useData()
+
+  const job = jobs.find(j => j.id === id)
+
+  // Local state for text report and audio recording
+  const [textNote, setTextNote] = useState(job?.worker_note || '')
+  const [workerVoiceUrl, setWorkerVoiceUrl] = useState<string | null>(job?.worker_voice_memo_url || null)
   const [isRecording, setIsRecording] = useState(false)
-  const [voiceStatus, setVoiceStatus] = useState('idle') // idle, uploading, done
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const mediaRecorder = useRef<MediaRecorder | null>(null)
   const audioChunks = useRef<Blob[]>([])
 
-  // Inventory State
-  const [consumablesList, setConsumablesList] = useState<any[]>([])
-  const [selectedMaterials, setSelectedMaterials] = useState<any[]>([])
-  const [selectedItem, setSelectedItem] = useState('')
-  const [inputQuantity, setInputQuantity] = useState('1')
-
-  useEffect(() => {
-    fetchJob()
-    fetchConsumables()
-  }, [id])
-
-  useEffect(() => {
-    if (job?.task_note) setTaskNote(job.task_note)
-  }, [job])
-
-  const fetchJob = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select(`*, clients ( full_name, address_text )`)
-        .eq('id', id)
-        .single()
-      
-      if (error) throw error
-      if (data) setJob(data)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchConsumables = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('item_type', 'consumable')
-        .order('item_name')
-      
-      if (!error && data) setConsumablesList(data)
-    } catch (err) {
-      console.error('Failed to fetch consumables', err)
-    }
-  }
-
-  const beforePhotoRef = useRef<HTMLInputElement>(null)
-  const afterPhotoRef = useRef<HTMLInputElement>(null)
-
-  const handleCheckIn = () => {
-    setLoading(true)
-    setError('')
-    
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser')
-      setLoading(false)
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords
-        try {
-          const { error } = await supabase
-            .from('jobs')
-            .update({ status: 'in_progress', check_in_lat: latitude, check_in_lng: longitude })
-            .eq('id', id)
-            
-          if (error) throw error
-          setJob({ ...job, status: 'in_progress', check_in_lat: latitude, check_in_lng: longitude })
-        } catch (err: any) {
-          setError(err.message || 'Failed to check in')
-        } finally {
-          setLoading(false)
-        }
-      },
-      () => {
-        setError('Failed to get location. Please allow location access.')
-        setLoading(false)
-      }
+  if (!job) {
+    return (
+      <div className="p-8 text-center space-y-3">
+        <p className="text-sm font-bold text-slate-700">Work order not found.</p>
+        <Link to="/worker" className="text-xs font-bold text-slate-900 underline">
+          Back to tasks
+        </Link>
+      </div>
     )
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setLoading(true)
-    try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${job.id}-${type}-${Math.random()}.${fileExt}`
-      const timestamp = new Date().toISOString()
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage.from('job-photos').upload(fileName, file)
-      if (uploadError) throw uploadError
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage.from('job-photos').getPublicUrl(fileName)
-      
-      // Update Job Record with Photo URL and EXACT Timestamp
-      const updates = { 
-        [`${type}_photo_url`]: publicUrl,
-        [`${type}_photo_taken_at`]: timestamp
-      }
-      
-      const { error: updateError } = await supabase.from('jobs').update(updates).eq('id', id)
-      if (updateError) throw updateError
-      
-      setJob({ ...job, ...updates })
-    } catch (err: any) {
-      setError(err.message || `Failed to upload ${type} photo`)
-    } finally {
-      setLoading(false)
-    }
+  // Guard: Worker can only view jobs assigned to them
+  if (job.assigned_worker_id && job.assigned_worker_id !== currentProfile.id) {
+    return (
+      <div className="p-8 text-center space-y-3">
+        <AlertCircle size={28} className="mx-auto text-amber-500" />
+        <p className="text-sm font-bold text-slate-700">Access Restricted</p>
+        <p className="text-xs text-slate-500">
+          This task is assigned to another technician.
+        </p>
+        <Link to="/worker" className="text-xs font-bold text-slate-900 underline">
+          Return to My Tasks
+        </Link>
+      </div>
+    )
   }
 
-  // Native Browser MediaRecorder Logic
-  const startRecording = async () => {
+  const isCompleted = job.status === 'completed'
+  const hasBefore = Boolean(job.before_photo_url)
+  const hasAfter = Boolean(job.after_photo_url)
+  const hasReport = (textNote && textNote.trim().length > 5) || Boolean(workerVoiceUrl)
+
+  // Hard Completion Gate: Both photos exist AND (text note > 5 chars OR voice memo exists)
+  const canComplete = hasBefore && hasAfter && hasReport && !isCompleted
+
+  // STEP 1: Handle Before Photo Capture
+  const handleBeforePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      // Silently get GPS coordinate
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          pos => startJobBeforePhoto(job.id, dataUrl, pos.coords.latitude, pos.coords.longitude),
+          () => startJobBeforePhoto(job.id, dataUrl, 30.2673, -97.7430)
+        )
+      } else {
+        startJobBeforePhoto(job.id, dataUrl, 30.2673, -97.7430)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // STEP 2: Handle After Photo Capture
+  const handleAfterPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      // Silently get GPS coordinate
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          pos => setJobAfterPhoto(job.id, dataUrl, pos.coords.latitude, pos.coords.longitude),
+          () => setJobAfterPhoto(job.id, dataUrl, 30.2673, -97.7430)
+        )
+      } else {
+        setJobAfterPhoto(job.id, dataUrl, 30.2673, -97.7430)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // STEP 3: Voice Memo Recording
+  const startRecordingMemo = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const recorder = new MediaRecorder(stream)
@@ -150,337 +130,307 @@ export function WorkerJobDetail() {
         if (e.data.size > 0) audioChunks.current.push(e.data)
       }
 
-      recorder.onstop = async () => {
-        setVoiceStatus('uploading')
+      recorder.onstop = () => {
         const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' })
-        const fileName = `${job.id}-voice-${Date.now()}.webm`
-        
-        try {
-          const { error: uploadError } = await supabase.storage.from('job-audio').upload(fileName, audioBlob)
-          if (uploadError) throw uploadError
-
-          const { data: { publicUrl } } = supabase.storage.from('job-audio').getPublicUrl(fileName)
-          
-          await supabase.from('jobs').update({ voice_memo_url: publicUrl }).eq('id', job.id)
-          setJob((prev: any) => ({ ...prev, voice_memo_url: publicUrl }))
-          setVoiceStatus('done')
-        } catch (err: any) {
-          setError('Failed to upload voice memo')
-          setVoiceStatus('idle')
-        }
-        
-        // Stop all tracks to turn off the OS microphone indicator
-        stream.getTracks().forEach(track => track.stop())
+        const audioUrl = URL.createObjectURL(audioBlob)
+        setWorkerVoiceUrl(audioUrl)
+        submitJobReport(job.id, textNote, audioUrl)
+        stream.getTracks().forEach(t => t.stop())
       }
 
       recorder.start()
       setIsRecording(true)
-    } catch (err) {
-      setError('Microphone access denied. Please check permissions.')
+    } catch {
+      alert('Microphone access unavailable on this device.')
     }
   }
 
-  const stopRecording = () => {
+  const stopRecordingMemo = () => {
     if (mediaRecorder.current && isRecording) {
       mediaRecorder.current.stop()
       setIsRecording(false)
     }
   }
 
-  const handleAddMaterial = () => {
-    if (!selectedItem || !inputQuantity || isNaN(Number(inputQuantity)) || Number(inputQuantity) <= 0) return
-    
-    const item = consumablesList.find(c => c.id === selectedItem)
-    if (!item) return
-    
-    const existing = selectedMaterials.find(m => m.item_id === selectedItem)
-    if (existing) {
-      setSelectedMaterials(selectedMaterials.map(m => 
-        m.item_id === selectedItem 
-          ? { ...m, quantity: m.quantity + Number(inputQuantity) } 
-          : m
-      ))
-    } else {
-      setSelectedMaterials([...selectedMaterials, { 
-        item_id: item.id, 
-        name: item.item_name, 
-        quantity: Number(inputQuantity) 
-      }])
-    }
-    
-    setSelectedItem('')
-    setInputQuantity('1')
-  }
+  // STEP 4: Submit & Lock Job
+  const handleFinalSubmit = () => {
+    if (!canComplete) return
+    setIsSubmitting(true)
 
-  const handleRemoveMaterial = (itemId: string) => {
-    setSelectedMaterials(selectedMaterials.filter(m => m.item_id !== itemId))
-  }
+    submitJobReport(job.id, textNote, workerVoiceUrl || undefined)
 
-  const handleComplete = async () => {
-    // HARD GATE LOGIC 
-    if (!job.before_photo_url || !job.after_photo_url) return
-    if (taskNote.length <= 5 && !job.voice_memo_url) return
-    
-    setLoading(true)
-    try {
-      // 1. Log Consumables (Atomic Auto-Deduction via RPC)
-      if (selectedMaterials.length > 0 && user) {
-        for (const material of selectedMaterials) {
-          const { error: rpcError } = await supabase.rpc('log_consumable_usage', {
-            p_job_id: id,
-            p_worker_id: user.id,
-            p_item_id: material.item_id,
-            p_quantity: material.quantity
-          })
-          
-          if (rpcError) {
-            console.error('RPC Error:', rpcError)
-            throw new Error(`Failed to log material: ${material.name}. Check if RPC is created in Supabase.`)
-          }
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          completeJob(job.id, pos.coords.latitude, pos.coords.longitude)
+          setIsSubmitting(false)
+          navigate('/worker')
+        },
+        () => {
+          completeJob(job.id, 30.2673, -97.7430)
+          setIsSubmitting(false)
+          navigate('/worker')
         }
-      }
-
-      // 2. Mark Job as Completed
-      const { error } = await supabase.from('jobs').update({ 
-        status: 'completed',
-        task_note: taskNote 
-      }).eq('id', id)
-      
-      if (error) throw error
-      
-      setJob({ ...job, status: 'completed', task_note: taskNote })
+      )
+    } else {
+      completeJob(job.id, 30.2673, -97.7430)
+      setIsSubmitting(false)
       navigate('/worker')
-    } catch (err: any) {
-      setError(err.message || 'Failed to complete job')
-    } finally {
-      setLoading(false)
     }
   }
-
-  if (loading && !job) return <div className="p-4 bg-slate-50 min-h-screen text-slate-500 font-medium">Loading job details...</div>
-  if (!job) return <div className="p-4 bg-slate-50 min-h-screen text-slate-500 font-medium">Job not found.</div>
-
-  // Boolean gate variables for UI disable logic
-  const hasBothPhotos = !!(job.before_photo_url && job.after_photo_url)
-  const hasValidReport = taskNote.length > 5 || !!job.voice_memo_url
-  const canComplete = hasBothPhotos && hasValidReport
 
   return (
-    <div className="flex flex-col min-h-full bg-slate-50 p-4 pb-24">
-      {/* Header */}
-      <div className="mb-6">
-        <Link to="/worker" className="inline-flex items-center text-sm font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors">
-          <ArrowLeft size={16} className="mr-1" /> Back to Jobs
+    <div className="space-y-4 animate-in fade-in duration-150">
+      
+      {/* Top Nav */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/worker"
+          className="inline-flex items-center text-xs font-bold text-slate-700 hover:text-slate-900"
+        >
+          <ArrowLeft size={14} className="mr-1" />
+          <span>Back to Task List</span>
         </Link>
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Job #{job.id.slice(0, 8)}</h1>
-        <p className="text-lg font-bold text-slate-700 mt-2">{job.clients?.full_name}</p>
-        <p className="text-sm font-medium text-slate-500 mt-1 flex items-center">
-          <MapPin size={14} className="mr-1.5 text-indigo-500" />
-          {job.clients?.address_text}
-        </p>
+        <Badge variant={job.status} size="sm" />
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm font-medium shadow-sm border border-red-200">
-          {error}
+      {/* Task Overview Card */}
+      <div className="worker-card p-4 space-y-2">
+        <h1 className="font-bold text-base text-slate-900 leading-snug">
+          {job.title}
+        </h1>
+        <p className="text-xs font-bold text-slate-700">
+          {job.client_name}
+        </p>
+        <p className="text-xs text-slate-500 flex items-center">
+          <MapPin size={13} className="mr-1 text-slate-400 shrink-0" />
+          <span>{job.address_text}</span>
+        </p>
+
+        {job.task_description && (
+          <div className="mt-2 pt-2 border-t border-slate-100">
+            <p className="text-[11px] font-bold uppercase text-slate-400">Scope Instructions:</p>
+            <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">
+              {job.task_description}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Admin Voice Briefing (if present) */}
+      {job.admin_voice_note_url && (
+        <div className="worker-card p-3.5 bg-slate-900 text-white space-y-2">
+          <div className="flex items-center space-x-2 text-xs font-bold uppercase text-slate-200">
+            <Volume2 size={15} className="text-blue-400" />
+            <span>Admin Audio Briefing</span>
+          </div>
+          <audio src={job.admin_voice_note_url} controls className="w-full h-8" />
         </div>
       )}
 
-      {/* Task Description */}
-      <div className="premium-card p-5 mb-6">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Task Description</h3>
-        <p className="text-slate-700 font-medium leading-relaxed">{job.task_description}</p>
-      </div>
+      {/* 4-STEP ACCOUNTABILITY TASK CHECKLIST */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+            Task Execution & Evidence Loop
+          </h2>
+          {isCompleted && (
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              Job Locked & Verified
+            </span>
+          )}
+        </div>
 
-      {/* Actions */}
-      <div className="space-y-4">
-        {job.status === 'pending' && (
-          <button
-            onClick={handleCheckIn}
-            disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 shadow hover:shadow-md text-white font-bold py-4 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:transform-none"
-          >
-            <MapPin size={20} />
-            <span>Check In (GPS)</span>
-          </button>
-        )}
-
-        {job.status === 'in_progress' && (
-          <div className="space-y-4">
-            
-            {/* Before Photo */}
-            <div className="premium-card p-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Before Photo</h3>
-              {job.before_photo_url ? (
-                <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-100">
-                  <img src={job.before_photo_url} alt="Before" className="w-full h-full object-cover" />
-                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-mono px-2 py-1 rounded">
-                    {new Date(job.before_photo_taken_at).toLocaleTimeString()}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    ref={beforePhotoRef}
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, 'before')}
-                  />
-                  <button
-                    onClick={() => beforePhotoRef.current?.click()}
-                    disabled={loading}
-                    className="w-full border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50 text-slate-600 font-bold py-10 rounded-xl flex flex-col items-center justify-center space-y-3 transition-all disabled:opacity-50"
-                  >
-                    <Camera size={28} className="text-slate-400" />
-                    <span>Capture Before Photo</span>
-                  </button>
-                </>
-              )}
+        {/* STEP 1: BEFORE PHOTO */}
+        <div className={`worker-card p-4 space-y-2.5 ${hasBefore ? 'border-emerald-200 bg-emerald-50/20' : ''}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${hasBefore ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                1
+              </span>
+              <span className="text-xs font-bold text-slate-900 uppercase">
+                Step 1: Before Service Photo
+              </span>
             </div>
+            {hasBefore && <CheckCircle2 size={16} className="text-emerald-600" />}
+          </div>
 
-            {/* After Photo */}
-            <div className="premium-card p-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">After Photo</h3>
-              {job.after_photo_url ? (
-                <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-100">
-                  <img src={job.after_photo_url} alt="After" className="w-full h-full object-cover" />
-                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-mono px-2 py-1 rounded">
-                    {new Date(job.after_photo_taken_at).toLocaleTimeString()}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    ref={afterPhotoRef}
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, 'after')}
-                  />
-                  <button
-                    onClick={() => afterPhotoRef.current?.click()}
-                    disabled={loading}
-                    className="w-full border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50 text-slate-600 font-bold py-10 rounded-xl flex flex-col items-center justify-center space-y-3 transition-all disabled:opacity-50"
-                  >
-                    <Camera size={28} className="text-slate-400" />
-                    <span>Capture After Photo</span>
-                  </button>
-                </>
-              )}
+          {job.before_photo_url ? (
+            <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200">
+              <img src={job.before_photo_url} alt="Before" className="w-full h-full object-cover" />
+              <div className="absolute bottom-2 left-2 bg-black/75 text-white text-[10px] font-mono px-2 py-0.5 rounded">
+                Captured: {formatTime(job.before_photo_taken_at)}
+              </div>
             </div>
-
-            {/* Task Report Section */}
-            <div className="premium-card p-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Task Report</h3>
-              <p className="text-sm text-slate-500 mb-4 font-medium leading-relaxed">Provide a text summary OR a voice memo detailing what was done on this job.</p>
-              
-              <textarea
-                value={taskNote}
-                onChange={(e) => setTaskNote(e.target.value)}
-                placeholder="Job notes... (Min 5 chars)"
-                className="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none mb-4 min-h-[100px] text-slate-700 bg-slate-50 font-medium"
-              />
-              
-              {!job.voice_memo_url ? (
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={voiceStatus === 'uploading'}
-                  className={`w-full py-4 rounded-xl flex items-center justify-center font-bold transition-all ${
-                    isRecording 
-                      ? 'bg-rose-100 text-rose-600 border border-rose-200 animate-pulse' 
-                      : voiceStatus === 'uploading' 
-                        ? 'bg-slate-100 text-slate-400' 
-                        : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                  }`}
-                >
-                  <Mic size={20} className="mr-2" />
-                  {isRecording ? 'Tap to Stop Recording' : voiceStatus === 'uploading' ? 'Uploading...' : 'Record Voice Memo'}
-                </button>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex flex-col space-y-3">
-                  <div className="flex items-center text-emerald-700 font-bold text-sm">
-                    <Mic size={16} className="mr-2" />
-                    Voice Memo Attached
-                  </div>
-                  <audio src={job.voice_memo_url} controls className="w-full h-10" />
-                </div>
-              )}
-            </div>
-
-            {/* Materials Log Section */}
-            <div className="premium-card p-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center">
-                <Package size={14} className="mr-2" /> Log Materials (Optional)
-              </h3>
-              <p className="text-sm text-slate-500 mb-4 font-medium leading-relaxed">Select any consumable materials used during this job. This will automatically deduct from inventory.</p>
-              
-              <div className="flex space-x-2 mb-4">
-                <select
-                  value={selectedItem}
-                  onChange={(e) => setSelectedItem(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-slate-700 bg-slate-50 font-medium text-sm"
-                >
-                  <option value="">Select an item...</option>
-                  {consumablesList.map(c => (
-                    <option key={c.id} value={c.id}>{c.item_name} ({c.quantity} in stock)</option>
-                  ))}
-                </select>
+          ) : (
+            <div>
+              <p className="text-xs text-slate-500 mb-2">
+                Capture unit condition prior to commencing service.
+              </p>
+              <label className="w-full py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-2 cursor-pointer transition-colors">
+                <Camera size={14} />
+                <span>Capture Before Photo</span>
                 <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={inputQuantity}
-                  onChange={(e) => setInputQuantity(e.target.value)}
-                  className="w-20 border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-slate-700 bg-slate-50 font-medium text-sm text-center"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleBeforePhotoChange}
                 />
-                <button
-                  onClick={handleAddMaterial}
-                  disabled={!selectedItem}
-                  className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 p-3 rounded-xl transition-colors disabled:opacity-50 border border-indigo-100"
-                >
-                  <Plus size={20} />
-                </button>
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* STEP 2: AFTER PHOTO */}
+        <div className={`worker-card p-4 space-y-2.5 ${hasAfter ? 'border-emerald-200 bg-emerald-50/20' : ''}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${hasAfter ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                2
+              </span>
+              <span className="text-xs font-bold text-slate-900 uppercase">
+                Step 2: After Service Photo
+              </span>
+            </div>
+            {hasAfter && <CheckCircle2 size={16} className="text-emerald-600" />}
+          </div>
+
+          {job.after_photo_url ? (
+            <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200">
+              <img src={job.after_photo_url} alt="After" className="w-full h-full object-cover" />
+              <div className="absolute bottom-2 left-2 bg-black/75 text-white text-[10px] font-mono px-2 py-0.5 rounded">
+                Captured: {formatTime(job.after_photo_taken_at)}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs text-slate-500 mb-2">
+                Capture finished repair, replaced parts, and clean workspace.
+              </p>
+              <label className={`w-full py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-2 transition-colors ${
+                !hasBefore
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-slate-900 hover:bg-slate-800 text-white cursor-pointer'
+              }`}>
+                <Camera size={14} />
+                <span>Capture After Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  disabled={!hasBefore}
+                  className="hidden"
+                  onChange={handleAfterPhotoChange}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* STEP 3: TASK REPORT (TEXT NOTE OR VOICE MEMO) */}
+        <div className={`worker-card p-4 space-y-3 ${hasReport ? 'border-emerald-200 bg-emerald-50/20' : ''}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${hasReport ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                3
+              </span>
+              <span className="text-xs font-bold text-slate-900 uppercase">
+                Step 3: Written Report OR Voice Memo
+              </span>
+            </div>
+            {hasReport && <CheckCircle2 size={16} className="text-emerald-600" />}
+          </div>
+
+          {!isCompleted ? (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
+                  Written Technician Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={textNote}
+                  onChange={e => {
+                    setTextNote(e.target.value)
+                    submitJobReport(job.id, e.target.value, workerVoiceUrl || undefined)
+                  }}
+                  placeholder="Detail work performed, pressures measured, parts replaced..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
               </div>
 
-              {selectedMaterials.length > 0 && (
-                <div className="bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden shadow-sm">
-                  <ul className="divide-y divide-slate-200/60">
-                    {selectedMaterials.map(m => (
-                      <li key={m.item_id} className="p-3 flex justify-between items-center bg-white/50">
-                        <span className="font-bold text-slate-700 text-sm">{m.name}</span>
-                        <div className="flex items-center space-x-3">
-                          <span className="font-mono text-sm font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Qty: {m.quantity}</span>
-                          <button onClick={() => handleRemoveMaterial(m.item_id)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">Or Record Voice Memo:</span>
+                {!isRecording ? (
+                  <button
+                    type="button"
+                    onClick={startRecordingMemo}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-lg flex items-center space-x-1.5 transition-colors"
+                  >
+                    <Mic size={14} />
+                    <span>{workerVoiceUrl ? 'Re-record Audio' : 'Record Audio Note'}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopRecordingMemo}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg flex items-center space-x-1.5 transition-colors animate-pulse"
+                  >
+                    <Square size={14} />
+                    <span>Stop Recording</span>
+                  </button>
+                )}
+              </div>
+
+              {workerVoiceUrl && (
+                <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                  <audio src={workerVoiceUrl} controls className="w-full h-8" />
                 </div>
               )}
             </div>
+          ) : (
+            <div className="space-y-2">
+              {job.worker_note && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800">
+                  {job.worker_note}
+                </div>
+              )}
+              {job.worker_voice_memo_url && (
+                <audio src={job.worker_voice_memo_url} controls className="w-full h-8" />
+              )}
+            </div>
+          )}
+        </div>
 
-            {/* Complete Job - The Hard Gate */}
+        {/* STEP 4: HARD COMPLETION GATE BUTTON */}
+        {!isCompleted ? (
+          <div className="pt-2">
             <button
-              onClick={handleComplete}
-              disabled={loading || !canComplete}
-              className="w-full bg-teal-600 hover:bg-teal-700 hover:-translate-y-0.5 shadow hover:shadow-md text-white font-bold py-4 rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:bg-slate-300 disabled:shadow-none disabled:transform-none mt-6"
+              onClick={handleFinalSubmit}
+              disabled={!canComplete || isSubmitting}
+              className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-sm flex items-center justify-center space-x-2 transition-all ${
+                canComplete
+                  ? 'bg-slate-900 hover:bg-slate-800 text-white'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
             >
-              <CheckCircle size={20} />
-              <span>{canComplete ? 'Complete Job' : 'Pending Requirements'}</span>
+              {canComplete ? (
+                <>
+                  <CheckCircle2 size={16} />
+                  <span>{isSubmitting ? 'Submitting & Locking...' : 'Submit & Complete Job'}</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={15} />
+                  <span>Complete Step 1, 2 & 3 to Unlock Completion</span>
+                </>
+              )}
             </button>
           </div>
-        )}
-
-        {job.status === 'completed' && (
-          <div className="bg-teal-50 border border-teal-200 rounded-2xl p-8 text-center mt-6 shadow-sm">
-            <CheckCircle size={48} className="text-teal-500 mx-auto mb-4" />
-            <h3 className="text-xl font-extrabold text-teal-900 mb-1">Job Completed</h3>
-            <p className="font-medium text-teal-600">Great work!</p>
+        ) : (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-emerald-800">
+            ✓ Job Completed & Submitted to Operations Command
           </div>
         )}
       </div>

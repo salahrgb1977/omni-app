@@ -1,220 +1,242 @@
-import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
-import { Briefcase, Package, User, DollarSign, Play, Square } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import React, { useState, useEffect } from 'react'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useData } from '../contexts/DataContext'
+import { formatVehicle, formatTime } from '../lib/formatters'
+import {
+  CheckSquare,
+  Package,
+  DollarSign,
+  User,
+  Power,
+  Clock,
+  Truck,
+  ShieldAlert,
+  ShieldCheck
+} from 'lucide-react'
 
 export function WorkerLayout() {
-  const { user } = useAuth()
-  const [activeShift, setActiveShift] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const pingInterval = useRef<number | null>(null)
+  const { currentProfile, currentRole, setCurrentRole, isCaptain, assignedVehicle } = useAuth()
+  const { shifts, startShift, endShift, addLocationPing } = useData()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  // On mount/auth change, check if there's an ongoing shift
+  // Find active shift for the logged-in technician
+  const myActiveShift = shifts.find(s => s.worker_id === currentProfile.id && !s.end_time)
+  const isShiftActive = Boolean(myActiveShift)
+
+  // Silent 5-minute background GPS tracking loop
   useEffect(() => {
-    if (user) {
-      checkActiveShift()
-    }
-    return () => {
-      if (pingInterval.current) clearInterval(pingInterval.current)
-    }
-  }, [user])
+    if (!isShiftActive || !myActiveShift) return
 
-  const checkActiveShift = async () => {
-    try {
-      const { data } = await supabase
-        .from('shifts')
-        .select('*')
-        .eq('worker_id', user?.id)
-        .is('end_time', null)
-        .order('start_time', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (data) {
-        setActiveShift(data)
-        startLocationTracking(data.id)
+    const sendSilentPing = () => {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            addLocationPing(myActiveShift.id, currentProfile.id, pos.coords.latitude, pos.coords.longitude)
+          },
+          () => {
+            // Fallback simulation coordinate in Austin area if browser geolocation blocked
+            const baseLat = 30.2672 + (Math.random() - 0.5) * 0.005
+            const baseLng = -97.7431 + (Math.random() - 0.5) * 0.005
+            addLocationPing(myActiveShift.id, currentProfile.id, baseLat, baseLng)
+          }
+        )
       }
-    } catch {
-      console.error('No active shift found or error checking shift.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const startShift = () => {
-    setError('')
-    setLoading(true)
-    
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser.')
-      setLoading(false)
-      return
     }
 
-    // Require location access BEFORE allowing the shift to start
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      try {
-        const { latitude, longitude } = pos.coords
-        
-        // 1. Create the shift in the database
-        const { data: shift, error: shiftError } = await supabase
-          .from('shifts')
-          .insert({ worker_id: user?.id })
-          .select()
-          .single()
-          
-        if (shiftError) throw shiftError
+    // Ping every 5 minutes (300,000 ms)
+    const interval = setInterval(sendSilentPing, 300000)
+    return () => clearInterval(interval)
+  }, [isShiftActive, myActiveShift, currentProfile.id, addLocationPing])
 
-        // 2. Immediately send the first location ping
-        await supabase.from('location_pings').insert({
-          shift_id: shift.id,
-          worker_id: user?.id,
-          lat: latitude,
-          lng: longitude
-        })
-
-        setActiveShift(shift)
-        startLocationTracking(shift.id)
-      } catch (err: any) {
-        // We explicitly use err here, so TS won't complain
-        setError(err.message || 'Failed to start shift')
-      } finally {
-        setLoading(false)
-      }
-    }, () => {
-      setError('GPS is required to start your shift. Please enable location permissions.')
-      setLoading(false)
-    })
-  }
-
-  const endShift = async () => {
-    if (!activeShift) return
-    setLoading(true)
-    try {
-      await supabase
-        .from('shifts')
-        .update({ end_time: new Date().toISOString() })
-        .eq('id', activeShift.id)
-        
-      setActiveShift(null)
-      if (pingInterval.current) {
-        clearInterval(pingInterval.current)
-        pingInterval.current = null
-      }
-    } catch {
-      setError('Failed to end shift')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const startLocationTracking = (shiftId: string) => {
-    // Clear any existing intervals
-    if (pingInterval.current) clearInterval(pingInterval.current)
-    
-    // Ping location every 5 minutes (300000 ms) silently
-    pingInterval.current = window.setInterval(() => {
-      if (!navigator.geolocation) return
-      
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          await supabase.from('location_pings').insert({
-            shift_id: shiftId,
-            worker_id: user?.id,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-          })
-        } catch {
-          // Fail silently in the background
+  const handleStartShift = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          startShift(currentProfile.id, pos.coords.latitude, pos.coords.longitude)
+        },
+        () => {
+          startShift(currentProfile.id, 30.2672, -97.7431)
         }
-      })
-    }, 300000)
+      )
+    } else {
+      startShift(currentProfile.id, 30.2672, -97.7431)
+    }
   }
 
-  if (loading && !activeShift) {
-    return <div className="p-4 bg-slate-50 min-h-screen flex items-center justify-center text-slate-500 font-medium">Authenticating shift status...</div>
+  const handleEndShift = () => {
+    if (!myActiveShift) return
+    if (confirm('Are you sure you want to end your shift?')) {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            endShift(myActiveShift.id, pos.coords.latitude, pos.coords.longitude)
+          },
+          () => {
+            endShift(myActiveShift.id, 30.2672, -97.7431)
+          }
+        )
+      } else {
+        endShift(myActiveShift.id, 30.2672, -97.7431)
+      }
+    }
   }
 
-  // --- THE SHIFT GATE ---
-  if (!activeShift) {
-    return (
-      <div className="flex flex-col h-screen bg-slate-950 justify-center items-center px-6 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/20 to-slate-950"></div>
-        <div className="z-10 w-full max-w-sm text-center">
-          <h1 className="text-4xl font-extrabold text-white mb-2 tracking-tight">Ready to Work?</h1>
-          <p className="text-slate-400 mb-12 font-medium">GPS location is required to begin your shift.</p>
-          
-          {error && <div className="mb-6 p-4 bg-rose-500/10 text-rose-400 rounded-xl text-sm font-medium">{error}</div>}
-          
-          <button 
-            onClick={startShift}
-            disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-2xl py-6 rounded-3xl shadow-[0_0_40px_rgba(79,70,229,0.3)] transition-all flex items-center justify-center disabled:opacity-50"
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans max-w-lg mx-auto shadow-xl border-x border-slate-200">
+      
+      {/* Worker App Header (Clean checklist style, NO radar pulses) */}
+      <header className="bg-slate-900 text-white p-4 sticky top-0 z-30 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <img
+            src={currentProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+            alt={currentProfile.full_name}
+            className="w-9 h-9 rounded-lg object-cover border border-slate-700"
+          />
+          <div>
+            <div className="flex items-center space-x-1.5">
+              <h1 className="text-sm font-bold text-white leading-tight">
+                {currentProfile.full_name}
+              </h1>
+              {isCaptain && (
+                <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+                  CAPTAIN
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 flex items-center mt-0.5">
+              <Truck size={11} className="mr-1 text-slate-400" />
+              {formatVehicle(assignedVehicle)}
+            </p>
+          </div>
+        </div>
+
+        {/* Shift Control Button */}
+        <div className="flex items-center space-x-2">
+          {isShiftActive ? (
+            <button
+              onClick={handleEndShift}
+              className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center space-x-1 transition-colors"
+            >
+              <Power size={12} />
+              <span>End Shift</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleStartShift}
+              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1 transition-colors"
+            >
+              <Power size={12} />
+              <span>Start Shift</span>
+            </button>
+          )}
+
+          {/* Switch back to Admin */}
+          <button
+            onClick={() => {
+              setCurrentRole('admin')
+              navigate('/admin')
+            }}
+            className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            title="Return to Admin Command"
           >
-            <Play size={28} className="mr-3" fill="currentColor" />
-            START SHIFT
+            <ShieldCheck size={16} />
           </button>
         </div>
-      </div>
-    )
-  }
+      </header>
 
-  // --- ACTIVE APP (ON SHIFT) ---
-  return (
-    <div className="flex flex-col h-screen bg-slate-50">
-      
-      <div className="bg-indigo-600 text-white px-4 py-3 flex justify-between items-center shadow-md z-20">
-        <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse"></div>
-          <span className="font-bold text-sm tracking-wide uppercase">On Shift</span>
-        </div>
-        <button onClick={endShift} className="bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-lg text-xs font-bold flex items-center transition-colors">
-          <Square size={12} className="mr-1.5" fill="currentColor" />
-          END SHIFT
-        </button>
-      </div>
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 overflow-y-auto pb-20">
+        {!isShiftActive ? (
+          /* HARD SHIFT GATE: App locks until worker taps Start Shift */
+          <div className="py-12 px-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-200 text-slate-700 rounded-2xl flex items-center justify-center mx-auto">
+              <Clock size={32} />
+            </div>
 
-      <main className="flex-1 overflow-y-auto pb-24">
-        <Outlet />
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Shift Gate Locked
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                You must clock in to access your assigned work orders and log task evidence.
+              </p>
+            </div>
+
+            <div className="p-3 bg-white border border-slate-200 rounded-xl text-left text-xs space-y-1.5 text-slate-600 shadow-sm max-w-xs mx-auto">
+              <p className="font-semibold text-slate-800">Technician Status:</p>
+              <p>• Assigned: <strong>{currentProfile.full_name}</strong></p>
+              <p>• Vehicle: <strong>{formatVehicle(assignedVehicle)}</strong></p>
+              <p>• Role: <strong>{isCaptain ? 'Daily Van Captain' : 'Technician'}</strong></p>
+            </div>
+
+            <button
+              onClick={handleStartShift}
+              className="w-full max-w-xs mx-auto py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center justify-center space-x-2"
+            >
+              <Power size={16} />
+              <span>Start Today's Shift & Clock In</span>
+            </button>
+          </div>
+        ) : (
+          <Outlet />
+        )}
       </main>
 
-      <nav className="fixed bottom-0 w-full glass-nav flex justify-around items-center h-20 max-w-md mx-auto px-2 z-20">
-        <NavLink 
-          to="/worker" 
-          end
-          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-          style={{ width: '64px', height: '64px' }}
-        >
-          <Briefcase size={22} className="mb-1" />
-          <span className="text-[10px] font-semibold">Jobs</span>
-        </NavLink>
-        <NavLink 
-          to="/worker/equipment" 
-          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-          style={{ width: '64px', height: '64px' }}
-        >
-          <Package size={22} className="mb-1" />
-          <span className="text-[10px] font-semibold">Vault</span>
-        </NavLink>
-        <NavLink 
-          to="/worker/earnings" 
-          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-          style={{ width: '64px', height: '64px' }}
-        >
-          <DollarSign size={22} className="mb-1" />
-          <span className="text-[10px] font-semibold">Pay</span>
-        </NavLink>
-        <NavLink 
-          to="/worker/profile" 
-          className={({isActive}) => `flex flex-col items-center justify-center p-2 rounded-2xl transition-all duration-200 ${isActive ? 'bg-indigo-50 text-indigo-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-          style={{ width: '64px', height: '64px' }}
-        >
-          <User size={22} className="mb-1" />
-          <span className="text-[10px] font-semibold">Profile</span>
-        </NavLink>
-      </nav>
+      {/* Bottom Mobile Tab Bar */}
+      {isShiftActive && (
+        <nav className="bg-white border-t border-slate-200 p-2 fixed bottom-0 left-0 right-0 max-w-lg mx-auto flex items-center justify-around z-30 shadow-lg">
+          <NavLink
+            to="/worker"
+            end
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-lg text-[10px] font-bold transition-colors ${
+                isActive ? 'text-slate-900 bg-slate-100' : 'text-slate-500 hover:text-slate-900'
+              }`
+            }
+          >
+            <CheckSquare size={18} className="mb-0.5" />
+            <span>My Tasks</span>
+          </NavLink>
+
+          <NavLink
+            to="/worker/vault"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-lg text-[10px] font-bold transition-colors ${
+                isActive ? 'text-slate-900 bg-slate-100' : 'text-slate-500 hover:text-slate-900'
+              }`
+            }
+          >
+            <Package size={18} className="mb-0.5" />
+            <span>Van Stock</span>
+          </NavLink>
+
+          <NavLink
+            to="/worker/earnings"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-lg text-[10px] font-bold transition-colors ${
+                isActive ? 'text-slate-900 bg-slate-100' : 'text-slate-500 hover:text-slate-900'
+              }`
+            }
+          >
+            <DollarSign size={18} className="mb-0.5" />
+            <span>My Shifts</span>
+          </NavLink>
+
+          <NavLink
+            to="/worker/profile"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-lg text-[10px] font-bold transition-colors ${
+                isActive ? 'text-slate-900 bg-slate-100' : 'text-slate-500 hover:text-slate-900'
+              }`
+            }
+          >
+            <User size={18} className="mb-0.5" />
+            <span>Profile</span>
+          </NavLink>
+        </nav>
+      )}
     </div>
   )
 }

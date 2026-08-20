@@ -1,60 +1,91 @@
-import { DollarSign, TrendingUp, Calendar as CalendarIcon } from 'lucide-react'
-
-// Dummy Data
-const WEEKLY_EARNINGS = 850.50
-const COMPLETED_JOBS = 12
+import React from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { useData } from '../contexts/DataContext'
+import { Badge } from '../components/common/Badge'
+import { formatCurrency, formatDateTime, formatTime, formatDuration } from '../lib/formatters'
+import { DollarSign, Clock, CheckCircle } from 'lucide-react'
 
 export function WorkerEarnings() {
+  const { currentProfile } = useAuth()
+  const { shifts } = useData()
+
+  const myShifts = shifts.filter(s => s.worker_id === currentProfile.id)
+  const totalEarned = myShifts.reduce((sum, s) => sum + (s.paid_amount || 0), 0)
+  const clearedEarnings = myShifts.filter(s => s.is_paid).reduce((sum, s) => sum + (s.paid_amount || 0), 0)
+  const pendingEarnings = myShifts.filter(s => !s.is_paid).reduce((sum, s) => sum + (s.paid_amount || 0), 0)
+
   return (
-    <div className="p-4 bg-slate-50 min-h-full">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Earnings</h1>
+    <div className="space-y-4">
       
-      <div className="bg-blue-600 text-white rounded-2xl p-6 mb-6 shadow-md bg-gradient-to-br from-blue-600 to-indigo-700">
-        <h2 className="text-blue-100 text-sm font-medium mb-1">This Week</h2>
-        <div className="text-4xl font-bold flex items-baseline">
-          <span className="text-2xl mr-1">$</span>
-          {WEEKLY_EARNINGS.toFixed(2)}
+      {/* Header */}
+      <div>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+          Personal Shifts & Earnings
+        </h2>
+        <p className="text-[11px] text-slate-500">
+          Base compensation at {formatCurrency(currentProfile.hourly_rate || 45)}/hr
+        </p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="worker-card p-3.5">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block">Cleared Paid</span>
+          <p className="text-xl font-bold font-mono text-emerald-700 mt-0.5">
+            {formatCurrency(clearedEarnings)}
+          </p>
         </div>
-        <div className="mt-4 flex items-center text-blue-100 text-sm bg-white/10 w-fit px-3 py-1.5 rounded-lg">
-          <TrendingUp size={16} className="mr-2" />
-          <span>+15% from last week</span>
+
+        <div className="worker-card p-3.5">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block">Pending Payout</span>
+          <p className="text-xl font-bold font-mono text-amber-700 mt-0.5">
+            {formatCurrency(pendingEarnings)}
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm mb-1 flex items-center">
-            <DollarSign size={16} className="mr-1" />
-            <span>Avg / Job</span>
-          </div>
-          <div className="text-xl font-bold text-slate-900">
-            ${(WEEKLY_EARNINGS / COMPLETED_JOBS).toFixed(2)}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm mb-1 flex items-center">
-            <CalendarIcon size={16} className="mr-1" />
-            <span>Completed</span>
-          </div>
-          <div className="text-xl font-bold text-slate-900">
-            {COMPLETED_JOBS} Jobs
-          </div>
-        </div>
-      </div>
+      {/* Shift Log Cards */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Shift Records
+        </h3>
 
-      <h3 className="font-bold text-slate-900 mb-4">Recent Payouts</h3>
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-slate-900">Job #{1000 + i}</p>
-              <p className="text-sm text-slate-500">Oct {15 - i}, 2023</p>
+        {myShifts.map(shift => {
+          const duration = formatDuration(shift.start_time, shift.end_time)
+          const isActive = !shift.end_time
+
+          return (
+            <div key={shift.id} className="worker-card p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900">
+                  {formatDateTime(shift.start_time).split('·')[0]}
+                </span>
+                {isActive ? (
+                  <Badge variant="active" size="sm" label="Active On Shift" />
+                ) : shift.is_paid ? (
+                  <Badge variant="paid" size="sm" label="Paid" />
+                ) : (
+                  <Badge variant="unpaid" size="sm" label="Pending" />
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center">
+                  <Clock size={12} className="mr-1 text-slate-400" />
+                  {formatTime(shift.start_time)} → {shift.end_time ? formatTime(shift.end_time) : 'Now'}
+                </span>
+                <span className="font-mono font-bold text-slate-900">
+                  {isActive ? 'In Progress' : duration}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Estimated Labor Pay:</span>
+                <span className="font-mono font-bold text-slate-900">{formatCurrency(shift.paid_amount)}</span>
+              </div>
             </div>
-            <div className="font-bold text-green-600">
-              +$75.00
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
