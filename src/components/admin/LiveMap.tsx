@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { Profile, Job, Shift, LocationPing } from '../../types/omni'
 import { Badge } from '../common/Badge'
-import { formatRelativeTime, formatVehicle } from '../../lib/formatters'
+import { formatRelativeTime } from '../../lib/formatters'
+import { useI18n } from '../../contexts/I18nContext'
 import { MapPin, Navigation, User, Briefcase, Eye } from 'lucide-react'
 
 // Fix default Leaflet icon paths in React bundlers
@@ -66,9 +67,10 @@ export function LiveMap({
   shifts,
   locationPings,
   onSelectJob,
-  height = '420px',
+  height = '400px',
   className = ''
 }: LiveMapProps) {
+  const { t } = useI18n()
   const [filter, setFilter] = useState<'all' | 'workers' | 'jobs'>('all')
 
   const defaultCenter: [number, number] = [30.2672, -97.7431] // Austin Metro
@@ -101,35 +103,35 @@ export function LiveMap({
   return (
     <div className={`admin-card overflow-hidden flex flex-col ${className}`}>
       {/* Map Control Bar */}
-      <div className="p-3 bg-white border-b border-slate-200 flex items-center justify-between z-20">
-        <div className="flex items-center space-x-2">
-          <Navigation size={16} className="text-slate-700" />
+      <div className="p-3 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 z-20">
+        <div className="flex items-center space-x-2 rtl:space-x-reverse">
+          <Navigation size={16} className="text-slate-700 shrink-0" />
           <span className="font-bold text-xs uppercase tracking-wider text-slate-800">
-            Live Field Operations Map
+            {t('map.title', 'خريطة العمليات الميدانية المباشرة')}
           </span>
-          <span className="text-xs text-slate-500 font-medium">
-            ({activeWorkersWithLocation.length} active technicians · {mappedJobs.length} work sites)
+          <span className="text-[11px] text-slate-500 font-medium hidden md:inline">
+            ({activeWorkersWithLocation.length} {t('map.active_techs', 'فنيون')} · {mappedJobs.length} {t('map.job_sites', 'مواقع')})
           </span>
         </div>
 
-        <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg text-xs font-semibold">
+        <div className="flex items-center space-x-1 rtl:space-x-reverse bg-slate-100 p-0.5 rounded-lg text-xs font-semibold overflow-x-auto no-scrollbar">
           <button
             onClick={() => setFilter('all')}
-            className={`px-2.5 py-1 rounded-md transition-colors ${filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`px-2.5 py-1 rounded-md transition-colors whitespace-nowrap ${filter === 'all' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            All Pins
+            {t('map.all_pins', 'الكل')}
           </button>
           <button
             onClick={() => setFilter('workers')}
-            className={`px-2.5 py-1 rounded-md transition-colors ${filter === 'workers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`px-2.5 py-1 rounded-md transition-colors whitespace-nowrap ${filter === 'workers' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            Active Techs ({activeWorkersWithLocation.length})
+            {t('map.active_techs', 'الفنيون')} ({activeWorkersWithLocation.length})
           </button>
           <button
             onClick={() => setFilter('jobs')}
-            className={`px-2.5 py-1 rounded-md transition-colors ${filter === 'jobs' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`px-2.5 py-1 rounded-md transition-colors whitespace-nowrap ${filter === 'jobs' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            Job Sites ({mappedJobs.length})
+            {t('map.job_sites', 'المواقع')} ({mappedJobs.length})
           </button>
         </div>
       </div>
@@ -159,8 +161,8 @@ export function LiveMap({
                   icon={createWorkerIcon(worker)}
                 >
                   <Popup>
-                    <div className="p-1 space-y-2 min-w-[180px]">
-                      <div className="flex items-center space-x-2">
+                    <div className="p-1 space-y-2 min-w-[180px] font-sans">
+                      <div className="flex items-center space-x-2 rtl:space-x-reverse">
                         <img
                           src={worker.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
                           alt={worker.full_name}
@@ -168,14 +170,16 @@ export function LiveMap({
                         />
                         <div>
                           <p className="font-bold text-xs text-slate-900">{worker.full_name}</p>
-                          <p className="text-[10px] text-slate-500">{formatVehicle(worker.assigned_vehicle)}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {worker.assigned_vehicle === 'van_1' ? t('vehicle.van_1', 'شاحنة 1') : t('vehicle.van_2', 'شاحنة 2')}
+                          </p>
                         </div>
                       </div>
 
                       <div className="text-[11px] text-slate-600 space-y-0.5 pt-1 border-t border-slate-100">
-                        <p className="text-[10px] text-emerald-700 font-bold uppercase">Active On Shift</p>
+                        <p className="text-[10px] text-emerald-700 font-bold uppercase">{t('badge.active', 'على رأس العمل')}</p>
                         <p className="text-[10px] text-slate-500 font-mono">
-                          Last ping: {formatRelativeTime(lastTime)}
+                          {t('map.last_ping', 'آخر إشارة:')} {formatRelativeTime(lastTime)}
                         </p>
                       </div>
                     </div>
@@ -196,7 +200,7 @@ export function LiveMap({
                   icon={createJobIcon(job.status)}
                 >
                   <Popup>
-                    <div className="p-1 space-y-2 min-w-[200px]">
+                    <div className="p-1 space-y-2 min-w-[200px] font-sans">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-slate-900 truncate">{job.client_name}</span>
                         <Badge variant={job.status} size="sm" />
@@ -205,13 +209,13 @@ export function LiveMap({
                       <div>
                         <p className="text-xs text-slate-700 font-medium line-clamp-1">{job.title}</p>
                         <p className="text-[10px] text-slate-500 truncate flex items-center mt-0.5">
-                          <MapPin size={10} className="mr-1 text-slate-400 shrink-0" />
+                          <MapPin size={10} className="mr-1 rtl:mr-0 rtl:ml-1 text-slate-400 shrink-0" />
                           {job.address_text}
                         </p>
                       </div>
 
                       <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">Tech: {job.assigned_worker_name || 'Unassigned'}</span>
+                        <span className="text-slate-500">{t('map.tech', 'الفني:')} {job.assigned_worker_name || t('map.unassigned', 'غير مسند')}</span>
                       </div>
 
                       {onSelectJob && (
@@ -219,8 +223,8 @@ export function LiveMap({
                           onClick={() => onSelectJob(job)}
                           className="w-full mt-1 py-1 px-2 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-semibold flex items-center justify-center transition-colors"
                         >
-                          <Eye size={12} className="mr-1" />
-                          View Proof & Details
+                          <Eye size={12} className="mr-1 rtl:mr-0 rtl:ml-1" />
+                          {t('map.view_proof', 'عرض الإثبات والتفاصيل')}
                         </button>
                       )}
                     </div>

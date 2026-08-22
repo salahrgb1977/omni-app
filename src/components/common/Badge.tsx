@@ -1,4 +1,5 @@
 import React from 'react'
+import { useI18n } from '../../contexts/I18nContext'
 
 export type BadgeVariant = 
   | 'pending' 
@@ -25,6 +26,7 @@ interface BadgeProps {
 }
 
 export function Badge({ variant, label, children, size = 'md', icon, className = '' }: BadgeProps) {
+  const { t } = useI18n()
   const content = children || label
 
   const variantStyles: Record<BadgeVariant, string> = {
@@ -44,32 +46,35 @@ export function Badge({ variant, label, children, size = 'md', icon, className =
   }
 
   const sizeStyles = {
-    sm: 'text-[11px] px-2 py-0.5 font-semibold gap-1',
-    md: 'text-xs px-2.5 py-1 font-semibold gap-1.5',
-    lg: 'text-sm px-3 py-1.5 font-semibold gap-2'
+    sm: 'text-[11px] px-2 py-0.5 font-bold gap-1',
+    md: 'text-xs px-2.5 py-1 font-bold gap-1.5',
+    lg: 'text-sm px-3 py-1.5 font-bold gap-2'
   }
 
-  const defaultLabels: Partial<Record<BadgeVariant, string>> = {
-    pending: 'Pending',
-    in_progress: 'In Progress',
-    completed: 'Completed',
-    paid: 'Paid',
-    unpaid: 'Unpaid',
-    active: 'Active On Shift',
-    urgent: 'Urgent',
-    equipment: 'Tool / Equipment',
-    consumable: 'Consumable',
-    van_1: 'Van 1',
-    van_2: 'Van 2',
-    captain: 'Daily Captain'
+  const getTranslatedLabel = (v: BadgeVariant) => {
+    switch (v) {
+      case 'pending': return t('badge.pending', 'قيد الانتظار')
+      case 'in_progress': return t('badge.in_progress', 'قيد التنفيذ')
+      case 'completed': return t('badge.completed', 'مكتملة')
+      case 'paid': return t('badge.paid', 'مسدد')
+      case 'unpaid': return t('badge.unpaid', 'غير مسدد')
+      case 'active': return t('badge.active', 'نشط على رأس العمل')
+      case 'urgent': return t('badge.urgent', 'عاجل')
+      case 'equipment': return t('badge.equipment', 'أداة / معدة')
+      case 'consumable': return t('badge.consumable', 'مستهلك / قطعة غيار')
+      case 'van_1': return t('badge.van_1', 'شاحنة 1')
+      case 'van_2': return t('badge.van_2', 'شاحنة 2')
+      case 'captain': return t('badge.captain', 'قائد الوردية')
+      default: return v
+    }
   }
 
   return (
     <span 
-      className={`inline-flex items-center rounded-md font-medium tracking-tight ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
+      className={`inline-flex items-center rounded-md tracking-tight ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
     >
       {icon && <span className="shrink-0">{icon}</span>}
-      <span>{content || defaultLabels[variant] || variant}</span>
+      <span>{content || getTranslatedLabel(variant)}</span>
     </span>
   )
 }

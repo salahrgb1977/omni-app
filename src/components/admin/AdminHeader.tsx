@@ -2,23 +2,29 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useData } from '../../contexts/DataContext'
+import { useI18n } from '../../contexts/I18nContext'
 import {
+  Menu,
   Search,
   Plus,
   Clock,
   Smartphone,
   ShieldCheck,
-  UserCheck
+  Settings,
+  Globe
 } from 'lucide-react'
 
 interface AdminHeaderProps {
   onOpenCreateJob?: () => void
+  onOpenMobileMenu?: () => void
+  onOpenSettings?: () => void
 }
 
-export function AdminHeader({ onOpenCreateJob }: AdminHeaderProps) {
+export function AdminHeader({ onOpenCreateJob, onOpenMobileMenu, onOpenSettings }: AdminHeaderProps) {
   const navigate = useNavigate()
   const { currentRole, setCurrentRole, currentProfile, switchProfile, profilesList } = useAuth()
   const { shifts } = useData()
+  const { t, language, setLanguage } = useI18n()
 
   const activeShiftsCount = shifts.filter(s => !s.end_time).length
   const workerProfiles = profilesList.filter(p => p.role === 'worker')
@@ -39,44 +45,73 @@ export function AdminHeader({ onOpenCreateJob }: AdminHeaderProps) {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30 shadow-subtle">
-      {/* Left: Active Shifts Badge & Search */}
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2 bg-slate-100 border border-slate-200 px-3 py-1 rounded-lg text-xs font-semibold text-slate-700">
-          <Clock size={14} className={activeShiftsCount > 0 ? 'text-emerald-600' : 'text-slate-400'} />
-          <span>
-            {activeShiftsCount > 0 ? (
-              <strong className="text-slate-900">{activeShiftsCount} Techs On Shift</strong>
-            ) : (
-              '0 Active Shifts'
-            )}
-          </span>
-        </div>
-
-        <div className="relative hidden md:block w-64">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search work orders, clients, parts..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-800"
-          />
-        </div>
-      </div>
-
-      {/* Right: Actions, Role Preview Switcher, and Profile */}
-      <div className="flex items-center space-x-3">
-        {onOpenCreateJob && (
+    <header className="h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-subtle">
+      {/* Left: Mobile Hamburger & Active Shifts Badge */}
+      <div className="flex items-center space-x-2 sm:space-x-3 rtl:space-x-reverse">
+        {/* Mobile Hamburger Drawer Trigger */}
+        {onOpenMobileMenu && (
           <button
-            onClick={onOpenCreateJob}
-            className="px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-colors"
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="lg:hidden p-2 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            aria-label="Open mobile menu"
           >
-            <Plus size={14} />
-            <span>Dispatch Job</span>
+            <Menu size={22} />
           </button>
         )}
 
-        {/* Role & Worker Preview Switcher */}
-        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+        {/* Active Shifts Status Pill */}
+        <div className="flex items-center space-x-1.5 rtl:space-x-reverse bg-slate-100 border border-slate-200 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700">
+          <Clock size={14} className={activeShiftsCount > 0 ? 'text-emerald-600 animate-pulse' : 'text-slate-400'} />
+          <span className="text-[11px] sm:text-xs">
+            {activeShiftsCount > 0 ? (
+              <strong className="text-slate-900">{activeShiftsCount} {t('active.techs.count', 'فني على رأس العمل')}</strong>
+            ) : (
+              t('active.techs.zero', '0 ورديات نشطة')
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* Right: Actions, Quick Language Switch, Settings, and Profile */}
+      <div className="flex items-center space-x-1.5 sm:space-x-3 rtl:space-x-reverse">
+        
+        {/* Quick Dispatch Job Button */}
+        {onOpenCreateJob && (
+          <button
+            onClick={onOpenCreateJob}
+            className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center space-x-1 sm:space-x-1.5 rtl:space-x-reverse shadow-sm transition-colors"
+          >
+            <Plus size={15} />
+            <span className="hidden xs:inline sm:inline">{t('dispatch.job', 'إسناد أمر عمل')}</span>
+          </button>
+        )}
+
+        {/* Quick Language Toggle Pill */}
+        <button
+          type="button"
+          onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center space-x-1 rtl:space-x-reverse border border-slate-200 transition-colors"
+          title={language === 'ar' ? 'Switch to English' : 'التحويل إلى العربية'}
+        >
+          <Globe size={14} className="text-blue-600" />
+          <span className="hidden sm:inline font-mono">{language === 'ar' ? 'EN' : 'عربي'}</span>
+        </button>
+
+        {/* Settings Dialog Trigger */}
+        {onOpenSettings && (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="p-1.5 sm:p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
+            title={t('settings', 'الإعدادات')}
+          >
+            <Settings size={18} />
+          </button>
+        )}
+
+        {/* Desktop Role & Worker Preview Switcher */}
+        <div className="hidden md:flex items-center space-x-1 rtl:space-x-reverse bg-slate-100 p-1 rounded-lg border border-slate-200">
           <button
             onClick={() => handleRoleToggle('admin')}
             className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors ${
@@ -85,10 +120,9 @@ export function AdminHeader({ onOpenCreateJob }: AdminHeaderProps) {
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            Admin View
+            {t('admin.view', 'لوحة الإدارة')}
           </button>
 
-          {/* Quick-switch as specific technician */}
           <select
             value={currentRole === 'worker' ? currentProfile.id : ''}
             onChange={e => {
@@ -96,28 +130,28 @@ export function AdminHeader({ onOpenCreateJob }: AdminHeaderProps) {
             }}
             className="bg-transparent text-xs font-bold text-slate-700 px-1 py-1 rounded focus:outline-none cursor-pointer"
           >
-            <option value="">📱 Preview Worker PWA...</option>
+            <option value="">📱 {t('worker.preview', 'معاينة تطبيق الفني...')}</option>
             {workerProfiles.map(w => (
               <option key={w.id} value={w.id}>
-                📱 {w.full_name} ({w.assigned_vehicle === 'van_1' ? 'Van 1' : 'Van 2'}{w.is_daily_captain ? ' · Captain' : ''})
+                📱 {w.full_name} ({w.assigned_vehicle === 'van_1' ? t('badge.van_1', 'شاحنة 1') : t('badge.van_2', 'شاحنة 2')}{w.is_daily_captain ? ` · ${t('badge.captain', 'قائد')}` : ''})
               </option>
             ))}
           </select>
         </div>
 
         {/* Profile Avatar */}
-        <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
+        <div className="flex items-center space-x-2 rtl:space-x-reverse pl-1 sm:pl-2 border-l rtl:border-l-0 rtl:border-r border-slate-200">
           <img
             src={currentProfile.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=250'}
             alt={currentProfile.full_name}
-            className="w-8 h-8 rounded-lg object-cover border border-slate-300"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover border border-slate-300"
           />
-          <div className="hidden lg:block text-left">
+          <div className="hidden xl:block text-left rtl:text-right">
             <p className="text-xs font-bold text-slate-900 leading-tight">
               {currentProfile.full_name}
             </p>
             <p className="text-[10px] text-slate-500 uppercase font-mono">
-              {currentProfile.role === 'admin' ? 'Executive Admin' : 'Field Technician'}
+              {currentProfile.role === 'admin' ? t('admin.view', 'إدارة العمليات') : t('profile.tech_auth', 'فني ميداني')}
             </p>
           </div>
         </div>

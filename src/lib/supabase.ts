@@ -35,3 +35,55 @@ export async function rpcLogConsumableUsage(
     p_vehicle: vehicle
   })
 }
+
+// Storage Upload Helper for Job Evidence (Before/After photos & Worker voice memos)
+export async function uploadJobProof(file: Blob | File, filename: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null
+
+  try {
+    const filePath = `${Date.now()}-${filename}`
+    const { error } = await supabase.storage
+      .from('job-proofs')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) {
+      console.warn('Supabase job proof storage upload error:', error.message)
+      return null
+    }
+
+    const { data } = supabase.storage.from('job-proofs').getPublicUrl(filePath)
+    return data.publicUrl
+  } catch (err) {
+    console.warn('Storage upload exception:', err)
+    return null
+  }
+}
+
+// Storage Upload Helper for Admin Audio Briefings
+export async function uploadVoiceBriefing(file: Blob | File, filename: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null
+
+  try {
+    const filePath = `briefing-${Date.now()}-${filename}`
+    const { error } = await supabase.storage
+      .from('voice-briefings')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) {
+      console.warn('Supabase voice briefing upload error:', error.message)
+      return null
+    }
+
+    const { data } = supabase.storage.from('voice-briefings').getPublicUrl(filePath)
+    return data.publicUrl
+  } catch (err) {
+    console.warn('Storage upload exception:', err)
+    return null
+  }
+}
