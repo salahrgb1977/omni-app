@@ -2,43 +2,58 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n } from '../contexts/I18nContext'
-import { formatVehicle } from '../lib/formatters'
 import {
   ShieldCheck,
-  User,
-  Truck,
-  CheckCircle,
+  Lock,
+  Mail,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Globe,
+  Sparkles,
   ArrowRight,
   ArrowLeft,
-  Lock,
-  Globe,
-  Sparkles
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react'
 
 export function LoginPage() {
-  const { profilesList, login } = useAuth()
+  const { loginWithEmailPassword, currentRole } = useAuth()
   const { t, language, setLanguage, isRTL } = useI18n()
   const navigate = useNavigate()
 
-  const [selectedId, setSelectedId] = useState<string>(profilesList[0]?.id || 'admin-1')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const selectedProfile = profilesList.find(p => p.id === selectedId) || profilesList[0]
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
+    setErrorMsg('')
 
-    setTimeout(() => {
-      login(selectedId)
-      setIsSubmitting(false)
-      if (selectedProfile.role === 'admin') {
-        navigate('/admin')
+    if (!email || !password) {
+      setErrorMsg(t('auth.fill_all_fields', 'يرجى إدخال البريد الإلكتروني وكلمة المرور.'))
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const result = await loginWithEmailPassword(email, password)
+      if (result.success) {
+        if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('ops')) {
+          navigate('/admin')
+        } else {
+          navigate('/admin') // will auto-route to /admin or /worker based on profile
+        }
       } else {
-        navigate('/worker')
+        setErrorMsg(t('auth.invalid_credentials', 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التحقق وإعادة المحاولة.'))
       }
-    }, 400)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -84,86 +99,81 @@ export function LoginPage() {
               {t('auth.login_title', 'أومني لأنظمة التكييف - تسجيل الدخول')}
             </h2>
             <p className="text-xs text-slate-400 max-w-xs mx-auto">
-              {t('auth.login_subtitle', 'حدد حسابك الميداني أو الإداري لبدء الجلسة')}
+              {t('auth.login_subtitle', 'أدخل البريد الإلكتروني وكلمة المرور للدخول إلى النظام')}
             </p>
           </div>
 
-          {/* Account Selection Form */}
-          <form onSubmit={handleSignIn} className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                {t('auth.select_profile', 'اختر الحساب النشط:')}
+          {/* Email & Password Form ONLY */}
+          <form onSubmit={handleSignIn} className="space-y-4">
+            
+            {/* Email Field */}
+            <div className="space-y-1.5 text-left rtl:text-right">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                {t('auth.email_label', 'البريد الإلكتروني الرسمي')}
               </label>
-
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {profilesList.map(profile => {
-                  const isSelected = profile.id === selectedId
-                  const isCaptain = Boolean(profile.is_daily_captain)
-
-                  return (
-                    <div
-                      key={profile.id}
-                      onClick={() => setSelectedId(profile.id)}
-                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                        isSelected
-                          ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/40 shadow-sm'
-                          : 'border-slate-800/80 bg-slate-950/60 hover:bg-slate-850 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 rtl:space-x-reverse min-w-0">
-                        <img
-                          src={profile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
-                          alt={profile.full_name}
-                          className="w-10 h-10 rounded-xl object-cover border border-slate-700 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <div className="flex items-center space-x-1.5 rtl:space-x-reverse">
-                            <h3 className="font-bold text-xs text-white truncate">
-                              {profile.full_name}
-                            </h3>
-                            {profile.role === 'admin' ? (
-                              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-bold px-1.5 py-0.2 rounded">
-                                ADMIN
-                              </span>
-                            ) : isCaptain ? (
-                              <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] font-bold px-1.5 py-0.2 rounded">
-                                CAPTAIN
-                              </span>
-                            ) : (
-                              <span className="bg-slate-800 text-slate-400 text-[9px] font-bold px-1.5 py-0.2 rounded">
-                                TECH
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-400 flex items-center mt-0.5">
-                            <Truck size={11} className="mr-1 rtl:mr-0 rtl:ml-1 text-slate-500" />
-                            {profile.assigned_vehicle === 'van_1' ? t('vehicle.van_1', 'شاحنة 1') : t('vehicle.van_2', 'شاحنة 2')}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 mr-1 rtl:mr-0 rtl:ml-1">
-                        {isSelected ? (
-                          <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm">
-                            <CheckCircle size={14} />
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full border border-slate-700" />
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 rtl:left-auto rtl:right-0 pl-3 rtl:pl-0 rtl:pr-3 flex items-center pointer-events-none text-slate-500">
+                  <Mail size={16} />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={e => {
+                    setEmail(e.target.value)
+                    setErrorMsg('')
+                  }}
+                  placeholder="admin@omni.hvac"
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl py-3 px-3 pl-10 rtl:pl-3 rtl:pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
+                />
               </div>
             </div>
 
-            {/* Sign In Button */}
+            {/* Password Field */}
+            <div className="space-y-1.5 text-left rtl:text-right">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                {t('auth.password_label', 'كلمة المرور')}
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 rtl:left-auto rtl:right-0 pl-3 rtl:pl-0 rtl:pr-3 flex items-center pointer-events-none text-slate-500">
+                  <KeyRound size={16} />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={e => {
+                    setPassword(e.target.value)
+                    setErrorMsg('')
+                  }}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl py-3 px-3 pl-10 pr-10 rtl:pl-10 rtl:pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 rtl:right-auto rtl:left-0 pr-3 rtl:pr-0 rtl:pl-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Error Message Display */}
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center space-x-2 rtl:space-x-reverse animate-in fade-in">
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-xs transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center space-x-2 rtl:space-x-reverse"
+              className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center space-x-2 rtl:space-x-reverse pt-3 mt-2"
             >
-              <span>{isSubmitting ? t('deduct.logging', 'جاري الدخول...') : t('auth.sign_in_btn', 'تسجيل الدخول ومتابعة العمل')}</span>
+              <span>{isSubmitting ? t('auth.logging_in', 'جاري التحقق وتسجيل الدخول...') : t('auth.sign_in_btn', 'تسجيل الدخول ومتابعة العمل')}</span>
               <ArrowIcon size={16} />
             </button>
           </form>
