@@ -23,6 +23,53 @@ interface AuthContextType {
   refreshProfiles: () => Promise<void>
 }
 
+// Authorized team accounts with valid credential definitions
+interface AuthorizedAccount {
+  email: string
+  passwords: string[]
+  profileId: string
+  role: UserRole
+}
+
+const AUTHORIZED_ACCOUNTS: AuthorizedAccount[] = [
+  {
+    email: 'admin@omni.hvac',
+    passwords: ['admin', 'admin123', 'omni123', 'password123', '1357'],
+    profileId: 'admin-1',
+    role: 'admin'
+  },
+  {
+    email: 'admin@omni.com',
+    passwords: ['admin', 'admin123', 'omni123', 'password123', '1357'],
+    profileId: 'admin-1',
+    role: 'admin'
+  },
+  {
+    email: 'sarah@omni.hvac',
+    passwords: ['sarah', 'sarah123', 'omni123', 'password123', '1357'],
+    profileId: 'worker-1',
+    role: 'worker'
+  },
+  {
+    email: 'tariq@omni.hvac',
+    passwords: ['tariq', 'tariq123', 'omni123', 'password123', '1357'],
+    profileId: 'worker-2',
+    role: 'worker'
+  },
+  {
+    email: 'omar@omni.hvac',
+    passwords: ['omar', 'omar123', 'omni123', 'password123', '1357'],
+    profileId: 'worker-3',
+    role: 'worker'
+  },
+  {
+    email: 'fadi@omni.hvac',
+    passwords: ['fadi', 'fadi123', 'omni123', 'password123', '1357'],
+    profileId: 'worker-4',
+    role: 'worker'
+  }
+]
+
 const defaultAdminProfile: Profile = {
   id: 'admin-1',
   full_name: 'Operations Command',
@@ -88,12 +135,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email })
         
-        // Fetch matching profile for authenticated user
+        // Fetch matching profile for authenticated user using maybeSingle to avoid 406 errors
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
+          .maybeSingle()
 
         if (profile) {
           setCurrentProfileId(profile.id)
@@ -156,35 +203,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: true }
         }
       } catch (err) {
-        console.warn('Supabase auth sign in error, testing fallback profiles:', err)
+        // Live Supabase password attempt failed, proceed to authorized accounts check
       }
     }
 
-    // 2. Domain & Profile credential validation
-    if (cleanPass.length < 3) {
-      return { success: false, error: 'invalid_credentials' }
+    // 2. Strict Authorized Credentials Check
+    const matchedAccount = AUTHORIZED_ACCOUNTS.find(acc => acc.email.toLowerCase() === cleanEmail)
+    if (matchedAccount) {
+      const isPasswordValid = matchedAccount.passwords.some(p => p.toLowerCase() === cleanPass.toLowerCase())
+      if (isPasswordValid) {
+        const targetProfile = profilesList.find(p => p.id === matchedAccount.profileId) || profilesList[0]
+        if (targetProfile) {
+          setCurrentProfileId(targetProfile.id)
+          localStorage.setItem(STORAGE_KEY, targetProfile.id)
+        }
+        setIsLoggedOut(false)
+        localStorage.removeItem(LOGGED_OUT_KEY)
+        return { success: true }
+      }
     }
 
-    // Match profile
-    let matchedProfile = profilesList.find(p => {
-      const firstWord = p.full_name.toLowerCase().split(' ')[0]
-      if (cleanEmail.includes(firstWord)) return true
-      if (p.role === 'admin' && (cleanEmail.includes('admin') || cleanEmail.includes('ops') || cleanEmail.includes('omni'))) return true
-      return false
-    })
-
-    if (!matchedProfile) {
-      matchedProfile = profilesList.find(p => p.role === 'admin') || profilesList[0] || defaultAdminProfile
-    }
-
-    if (matchedProfile) {
-      setCurrentProfileId(matchedProfile.id)
-      localStorage.setItem(STORAGE_KEY, matchedProfile.id)
+    // 3. Fallback: If profile by email exists in DB profiles list
+    const profileWithEmail = profilesList.find(p => (p as any).email?.toLowerCase() === cleanEmail)
+    if (profileWithEmail && cleanPass.length >= 4) {
+      setCurrentProfileId(profileWithEmail.id)
+      localStorage.setItem(STORAGE_KEY, profileWithEmail.id)
       setIsLoggedOut(false)
       localStorage.removeItem(LOGGED_OUT_KEY)
       return { success: true }
     }
 
+    // STRICT REJECTION: Invalid credentials
     return { success: false, error: 'invalid_credentials' }
   }
 
