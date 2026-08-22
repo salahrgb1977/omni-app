@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { Profile, UserRole, VehicleId } from '../types/omni'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
+export const SECRET_LOGOUT_PIN = '1357'
+
 interface AuthContextType {
   currentRole: UserRole
   setCurrentRole: (role: UserRole) => void
@@ -12,6 +14,11 @@ interface AuthContextType {
   assignedVehicle: VehicleId
   user: { id: string; email?: string } | null
   isLoading: boolean
+  isLoggedOut: boolean
+  isLogoutModalOpen: boolean
+  setIsLogoutModalOpen: (open: boolean) => void
+  login: (profileId?: string) => void
+  logoutWithSecretCode: (code: string) => Promise<{ success: boolean; error?: string }>
   refreshProfiles: () => Promise<void>
 }
 
@@ -28,12 +35,17 @@ const defaultAdminProfile: Profile = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const STORAGE_KEY = 'omni_hvac_active_profile_id'
+const LOGGED_OUT_KEY = 'omni_hvac_logged_out'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profilesList, setProfilesList] = useState<Profile[]>([defaultAdminProfile])
   const [currentProfileId, setCurrentProfileId] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY) || 'admin-1'
   })
+  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(() => {
+    return localStorage.getItem(LOGGED_OUT_KEY) === 'true'
+  })
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState<boolean>(false)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
@@ -112,6 +124,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, profileId)
   }
 
+  const login = (profileId?: string) => {
+    if (profileId) {
+      setCurrentProfileId(profileId)
+      localStorage.setItem(STORAGE_KEY, profileId)
+    }
+    setIsLoggedOut(false)
+    localStorage.removeItem(LOGGED_OUT_KEY)
+  }
+
+  const logoutWithSecretCode = async (code: string): Promise<{ success: boolean; error?: string }> => {
+    if (code.trim() !== SECRET_LOGOUT_PIN) {
+      return { success: false, error: 'invalid_code' }
+    }
+
+    try {
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut().catch(() => {})
+      }
+    } finally {
+      setIsLoggedOut(true)
+      localStorage.setItem(LOGGED_OUT_KEY, 'true')
+      setIsLogoutModalOpen(false)
+    }
+
+    return { success: true }
+  }
+
   const isCaptain = Boolean(currentProfile.is_daily_captain)
   const assignedVehicle = currentProfile.assigned_vehicle || 'van_1'
 
@@ -127,6 +166,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         assignedVehicle,
         user,
         isLoading,
+        isLoggedOut,
+        isLogoutModalOpen,
+        setIsLogoutModalOpen,
+        login,
+        logoutWithSecretCode,
         refreshProfiles: fetchProfiles
       }}
     >

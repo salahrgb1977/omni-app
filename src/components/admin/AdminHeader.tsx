@@ -11,7 +11,8 @@ import {
   Smartphone,
   ShieldCheck,
   Settings,
-  Globe
+  Globe,
+  LogOut
 } from 'lucide-react'
 
 interface AdminHeaderProps {
@@ -22,7 +23,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ onOpenCreateJob, onOpenMobileMenu, onOpenSettings }: AdminHeaderProps) {
   const navigate = useNavigate()
-  const { currentRole, setCurrentRole, currentProfile, switchProfile, profilesList } = useAuth()
+  const { currentRole, setCurrentRole, currentProfile, switchProfile, profilesList, setIsLogoutModalOpen } = useAuth()
   const { shifts } = useData()
   const { t, language, setLanguage } = useI18n()
 
@@ -73,8 +74,8 @@ export function AdminHeader({ onOpenCreateJob, onOpenMobileMenu, onOpenSettings 
         </div>
       </div>
 
-      {/* Right: Actions, Quick Language Switch, Settings, and Profile */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3 rtl:space-x-reverse">
+      {/* Right: Actions, Quick Language Switch, Settings, Logout and Profile */}
+      <div className="flex items-center space-x-1.5 sm:space-x-2.5 rtl:space-x-reverse">
         
         {/* Quick Dispatch Job Button */}
         {onOpenCreateJob && (
@@ -133,11 +134,21 @@ export function AdminHeader({ onOpenCreateJob, onOpenMobileMenu, onOpenSettings 
             <option value="">📱 {t('worker.preview', 'معاينة تطبيق الفني...')}</option>
             {workerProfiles.map(w => (
               <option key={w.id} value={w.id}>
-                📱 {w.full_name} ({w.assigned_vehicle === 'van_1' ? t('badge.van_1', 'شاحنة 1') : t('badge.van_2', 'شاحنة 2')}{w.is_daily_captain ? ` · ${t('badge.captain', 'قائد')}` : ''})
+                📱 {w.full_name} ({w.assigned_vehicle === 'van_1' ? t('vehicle.van_1', 'شاحنة 1') : t('vehicle.van_2', 'شاحنة 2')}{w.is_daily_captain ? ` · ${t('badge.captain', 'قائد')}` : ''})
               </option>
             ))}
           </select>
         </div>
+
+        {/* Security Logout Button (Requires Code 1357) */}
+        <button
+          type="button"
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
+          title={t('auth.logout', 'تسجيل الخروج (رمز سري)')}
+        >
+          <LogOut size={18} />
+        </button>
 
         {/* Profile Avatar */}
         <div className="flex items-center space-x-2 rtl:space-x-reverse pl-1 sm:pl-2 border-l rtl:border-l-0 rtl:border-r border-slate-200">

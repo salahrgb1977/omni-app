@@ -16,11 +16,12 @@ import {
   ShieldAlert,
   ShieldCheck,
   Globe,
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react'
 
 export function WorkerLayout() {
-  const { currentProfile, currentRole, setCurrentRole, isCaptain, assignedVehicle } = useAuth()
+  const { currentProfile, currentRole, setCurrentRole, isCaptain, assignedVehicle, setIsLogoutModalOpen } = useAuth()
   const { shifts, startShift, endShift, addLocationPing } = useData()
   const { t, language, setLanguage } = useI18n()
   const navigate = useNavigate()
@@ -138,6 +139,16 @@ export function WorkerLayout() {
             title={t('settings', 'الإعدادات')}
           >
             <Settings size={16} />
+          </button>
+
+          {/* Security Logout Button (Requires 1357) */}
+          <button
+            type="button"
+            onClick={() => setIsLogoutModalOpen(true)}
+            className="p-1.5 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+            title={t('auth.logout', 'تسجيل الخروج (رمز سري)')}
+          >
+            <LogOut size={16} />
           </button>
 
           {/* Shift Button */}

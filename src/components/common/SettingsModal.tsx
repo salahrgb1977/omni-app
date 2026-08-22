@@ -11,7 +11,9 @@ import {
   Database,
   CheckCircle,
   AlertTriangle,
-  Info
+  Info,
+  LogOut,
+  Lock
 } from 'lucide-react'
 
 interface SettingsModalProps {
@@ -21,11 +23,14 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { language, setLanguage, t, isRTL } = useI18n()
-  const { currentRole, setCurrentRole, currentProfile, switchProfile, profilesList } = useAuth()
+  const { currentRole, setCurrentRole, currentProfile, switchProfile, profilesList, setIsLogoutModalOpen } = useAuth()
 
   if (!isOpen) return null
 
-  const workerProfiles = profilesList.filter(p => p.role === 'worker')
+  const handleLogoutClick = () => {
+    onClose()
+    setIsLogoutModalOpen(true)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
@@ -180,6 +185,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Security & Logout Section */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center space-x-1.5 rtl:space-x-reverse">
+              <Lock size={15} className="text-rose-600" />
+              <span>{t('auth.logout', 'الأمان وتسجيل الخروج')}</span>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleLogoutClick}
+              className="w-full py-2.5 px-3 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center justify-center space-x-2 rtl:space-x-reverse transition-colors"
+            >
+              <LogOut size={15} />
+              <span>{t('auth.logout_secret', 'تسجيل الخروج (يتطلب رمز الأمان السري 1357)')}</span>
+            </button>
           </div>
 
           {/* Version Info */}

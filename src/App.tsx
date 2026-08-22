@@ -1,5 +1,9 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth } from './contexts/AuthContext'
+import { LoginPage } from './pages/LoginPage'
+import { LogoutModal } from './components/common/LogoutModal'
+
 import { AdminLayout } from './components/admin/AdminLayout'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminShifts } from './pages/admin/AdminShifts'
@@ -16,30 +20,46 @@ import { WorkerEarnings } from './pages/WorkerEarnings'
 import { WorkerProfile } from './pages/WorkerProfile'
 
 export function App() {
+  const { isLoggedOut } = useAuth()
+
+  if (isLoggedOut) {
+    return (
+      <>
+        <LoginPage />
+        <LogoutModal />
+      </>
+    )
+  }
+
   return (
-    <Routes>
-      {/* Admin Operations Command */}
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<AdminDashboard />} />
-        <Route path="shifts" element={<AdminShifts />} />
-        <Route path="jobs" element={<AdminJobs />} />
-        <Route path="inventory" element={<AdminInventory />} />
-        <Route path="workers" element={<AdminWorkers />} />
-        <Route path="payroll" element={<AdminPayroll />} />
-      </Route>
+    <>
+      <Routes>
+        {/* Admin Operations Command */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="shifts" element={<AdminShifts />} />
+          <Route path="jobs" element={<AdminJobs />} />
+          <Route path="inventory" element={<AdminInventory />} />
+          <Route path="workers" element={<AdminWorkers />} />
+          <Route path="payroll" element={<AdminPayroll />} />
+        </Route>
 
-      {/* Field Worker Mobile PWA */}
-      <Route path="/worker" element={<WorkerLayout />}>
-        <Route index element={<WorkerJobsList />} />
-        <Route path="job/:id" element={<WorkerJobDetail />} />
-        <Route path="vault" element={<WorkerVault />} />
-        <Route path="earnings" element={<WorkerEarnings />} />
-        <Route path="profile" element={<WorkerProfile />} />
-      </Route>
+        {/* Field Worker Mobile PWA */}
+        <Route path="/worker" element={<WorkerLayout />}>
+          <Route index element={<WorkerJobsList />} />
+          <Route path="job/:id" element={<WorkerJobDetail />} />
+          <Route path="vault" element={<WorkerVault />} />
+          <Route path="earnings" element={<WorkerEarnings />} />
+          <Route path="profile" element={<WorkerProfile />} />
+        </Route>
 
-      {/* Default fallback */}
-      <Route path="*" element={<Navigate to="/admin" replace />} />
-    </Routes>
+        {/* Default fallback */}
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+
+      {/* Global Security PIN Logout Modal */}
+      <LogoutModal />
+    </>
   )
 }
 export default App

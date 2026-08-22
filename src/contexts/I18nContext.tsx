@@ -335,6 +335,23 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.score': 'تقييم الموثوقية',
     'profile.rate': 'سعر الساعة الأساسي',
     'profile.phone': 'رقم الهاتف المباشر',
+
+    // Authentication & Secret Code Logout
+    'auth.logout': 'تسجيل الخروج',
+    'auth.logout_secret': 'تسجيل الخروج (رمز سري)',
+    'auth.logout_modal_title': 'تأكيد تسجيل الخروج الأمني',
+    'auth.logout_modal_desc': 'لإتمام تسجيل الخروج وقفل النظام، يرجى إدخال رمز الأمان السري المعتمد (1357).',
+    'auth.secret_code_label': 'رمز الأمان السري',
+    'auth.secret_code_placeholder': 'أدخل الرمز السري 1357',
+    'auth.confirm_logout': 'تأكيد الخروج وقفل النظام',
+    'auth.cancel': 'إلغاء',
+    'auth.invalid_code': 'رمز الأمان غير صحيح! يرجى إدخال الرمز المعتمد 1357.',
+    'auth.code_required': 'يرجى إدخال رمز الأمان المكون من 4 أرقام.',
+    'auth.login_title': 'أومني لأنظمة التكييف - تسجيل الدخول',
+    'auth.login_subtitle': 'حدد حسابك الميداني أو الإداري لبدء الجلسة',
+    'auth.select_profile': 'اختر الحساب النشط:',
+    'auth.sign_in_btn': 'تسجيل الدخول ومتابعة العمل',
+    'auth.locked_title': 'النظام مقفل - تسجيل الدخول مطلوب',
   },
   en: {
     // Brand & Header
@@ -659,6 +676,23 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.score': 'Reliability Score',
     'profile.rate': 'Hourly Base Rate',
     'profile.phone': 'Direct Phone',
+
+    // Authentication & Secret Code Logout
+    'auth.logout': 'Log Out',
+    'auth.logout_secret': 'Log Out (Secret PIN Required)',
+    'auth.logout_modal_title': 'Security Logout Confirmation',
+    'auth.logout_modal_desc': 'To confirm logout and lock the system, enter the authorized secret PIN (1357).',
+    'auth.secret_code_label': 'Secret Security PIN',
+    'auth.secret_code_placeholder': 'Enter secret PIN 1357',
+    'auth.confirm_logout': 'Confirm Logout & Lock System',
+    'auth.cancel': 'Cancel',
+    'auth.invalid_code': 'Invalid security PIN! Enter the authorized code 1357.',
+    'auth.code_required': 'Please enter the 4-digit security PIN.',
+    'auth.login_title': 'Omni HVAC OS - Sign In',
+    'auth.login_subtitle': 'Select your field or operations account to begin session',
+    'auth.select_profile': 'Select Active Account:',
+    'auth.sign_in_btn': 'Sign In & Access System',
+    'auth.locked_title': 'System Locked - Sign In Required',
   }
 }
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import {
   LayoutDashboard,
@@ -11,7 +12,8 @@ import {
   Flame,
   X,
   Globe,
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react'
 
 interface AdminSidebarProps {
@@ -22,6 +24,7 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ isMobileOpen, onMobileClose, onOpenSettings }: AdminSidebarProps) {
   const location = useLocation()
+  const { setIsLogoutModalOpen } = useAuth()
   const { t, language, setLanguage, isRTL } = useI18n()
 
   const navItems = [
@@ -62,6 +65,11 @@ export function AdminSidebar({ isMobileOpen, onMobileClose, onOpenSettings }: Ad
     if (onMobileClose) {
       onMobileClose()
     }
+  }
+
+  const handleLogoutClick = () => {
+    if (onMobileClose) onMobileClose()
+    setIsLogoutModalOpen(true)
   }
 
   const sidebarContent = (
@@ -123,7 +131,7 @@ export function AdminSidebar({ isMobileOpen, onMobileClose, onOpenSettings }: Ad
         })}
       </nav>
 
-      {/* Language & Settings Footer Actions */}
+      {/* Language, Settings & Logout Footer Actions */}
       <div className="p-3 border-t border-slate-900 bg-slate-950/80 space-y-2">
         <div className="grid grid-cols-2 gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800">
           <button
@@ -163,6 +171,16 @@ export function AdminSidebar({ isMobileOpen, onMobileClose, onOpenSettings }: Ad
             <span>{t('settings', 'الإعدادات')}</span>
           </button>
         )}
+
+        {/* Security Logout Button */}
+        <button
+          type="button"
+          onClick={handleLogoutClick}
+          className="w-full py-2 px-3 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/40 text-rose-300 hover:text-white text-xs font-bold flex items-center justify-center space-x-2 rtl:space-x-reverse transition-colors"
+        >
+          <LogOut size={14} />
+          <span>{t('auth.logout_secret', 'تسجيل الخروج (رمز سري)')}</span>
+        </button>
 
         <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400 px-1">
           <span className="flex items-center">
